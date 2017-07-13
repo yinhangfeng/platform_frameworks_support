@@ -147,6 +147,8 @@ import java.util.List;
  * writing an {@link Adapter}, you probably want to use adapter positions.
  *
  * @attr ref android.support.v7.recyclerview.R.styleable#RecyclerView_layoutManager
+ *
+ * 注释纵带 EXT的代表相对于默认RecyclerView的扩展
  */
 public class RecyclerView extends ViewGroup implements ScrollingView, NestedScrollingChild {
 
@@ -437,11 +439,11 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
     private int mScrollState = SCROLL_STATE_IDLE;
     private int mScrollPointerId = INVALID_POINTER;
     private VelocityTracker mVelocityTracker;
-    private int mInitialTouchX;
-    private int mInitialTouchY;
-    private int mLastTouchX;
-    private int mLastTouchY;
-    private int mTouchSlop;
+    protected int mInitialTouchX;
+    protected int mInitialTouchY;
+    protected int mLastTouchX;
+    protected int mLastTouchY;
+    protected int mTouchSlop;
     private OnFlingListener mOnFlingListener;
     private final int mMinFlingVelocity;
     private final int mMaxFlingVelocity;
@@ -2749,11 +2751,11 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                     final int dx = x - mInitialTouchX;
                     final int dy = y - mInitialTouchY;
                     boolean startScroll = false;
-                    if (canScrollHorizontally && Math.abs(dx) > mTouchSlop) {
+                    if (canScrollHorizontally && shouldStartDragging(true, true, dx, dy)) {
                         mLastTouchX = mInitialTouchX + mTouchSlop * (dx < 0 ? -1 : 1);
                         startScroll = true;
                     }
-                    if (canScrollVertically && Math.abs(dy) > mTouchSlop) {
+                    if (canScrollVertically && shouldStartDragging(true, false, dx, dy)) {
                         mLastTouchY = mInitialTouchY + mTouchSlop * (dy < 0 ? -1 : 1);
                         startScroll = true;
                     }
@@ -2866,7 +2868,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
 
                 if (mScrollState != SCROLL_STATE_DRAGGING) {
                     boolean startScroll = false;
-                    if (canScrollHorizontally && Math.abs(dx) > mTouchSlop) {
+                    if (canScrollHorizontally && shouldStartDragging(false, true, dx, dy)) {
                         if (dx > 0) {
                             dx -= mTouchSlop;
                         } else {
@@ -2874,7 +2876,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                         }
                         startScroll = true;
                     }
-                    if (canScrollVertically && Math.abs(dy) > mTouchSlop) {
+                    if (canScrollVertically && shouldStartDragging(false, false, dx, dy)) {
                         if (dy > 0) {
                             dy -= mTouchSlop;
                         } else {
@@ -2932,6 +2934,26 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
         vtev.recycle();
 
         return true;
+    }
+
+    /**
+     * EXT
+     * 在ACTION_MOVE 时决定是否需要开始dragging
+     * 子类可重写实现自定义的判断逻辑
+     * @param isInterceptTouch 是否为onInterceptTouchEvent
+     * @param isHorizontally 是否为横向
+     * @param dx x 方向相对于初始的移动距离 带符号
+     * @param dy y 方向相对于初始的移动距离 带符号
+     * @return 是否需要开始dragging
+     */
+    protected boolean shouldStartDragging(
+            boolean isInterceptTouch,
+            boolean isHorizontally,
+            int dx,
+            int dy
+    ) {
+        return isHorizontally && Math.abs(dx) > mTouchSlop
+                || !isHorizontally && Math.abs(dy) > mTouchSlop;
     }
 
     private void resetTouch() {
