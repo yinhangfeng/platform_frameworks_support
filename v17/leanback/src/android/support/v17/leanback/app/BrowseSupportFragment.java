@@ -555,7 +555,9 @@ public class BrowseSupportFragment extends BaseSupportFragment {
 
     private boolean createMainFragment(ObjectAdapter adapter, int position) {
         Object item = null;
-        if (adapter == null || adapter.size() == 0) {
+        if (!mCanShowHeaders) {
+            // when header is disabled, we can decide to use RowsSupportFragment even no data.
+        } else if (adapter == null || adapter.size() == 0) {
             return false;
         } else {
             if (position < 0) {
@@ -568,7 +570,7 @@ public class BrowseSupportFragment extends BaseSupportFragment {
         }
 
         boolean oldIsPageRow = mIsPageRow;
-        mIsPageRow = item instanceof PageRow;
+        mIsPageRow = mCanShowHeaders && item instanceof PageRow;
         boolean swap;
 
         if (mMainFragment == null) {
@@ -634,7 +636,7 @@ public class BrowseSupportFragment extends BaseSupportFragment {
      * against {@link PageRow}.
      */
     public final static class MainFragmentAdapterRegistry {
-        private final Map<Class, FragmentFactory> mItemToFragmentFactoryMapping = new HashMap();
+        private final Map<Class, FragmentFactory> mItemToFragmentFactoryMapping = new HashMap<>();
         private final static FragmentFactory sDefaultFragmentFactory = new ListRowFragmentFactory();
 
         public MainFragmentAdapterRegistry() {
@@ -646,11 +648,8 @@ public class BrowseSupportFragment extends BaseSupportFragment {
         }
 
         public Fragment createFragment(Object item) {
-            if (item == null) {
-                throw new IllegalArgumentException("Item can't be null");
-            }
-
-            FragmentFactory fragmentFactory = mItemToFragmentFactoryMapping.get(item.getClass());
+            FragmentFactory fragmentFactory = item == null ? sDefaultFragmentFactory :
+                    mItemToFragmentFactoryMapping.get(item.getClass());
             if (fragmentFactory == null && !(item instanceof PageRow)) {
                 fragmentFactory = sDefaultFragmentFactory;
             }
@@ -1030,7 +1029,8 @@ public class BrowseSupportFragment extends BaseSupportFragment {
                         ? mHeadersSupportFragment.getVerticalGridView() : mMainFragment.getView();
             }
 
-            boolean isRtl = ViewCompat.getLayoutDirection(focused) == View.LAYOUT_DIRECTION_RTL;
+            boolean isRtl = ViewCompat.getLayoutDirection(focused)
+                    == ViewCompat.LAYOUT_DIRECTION_RTL;
             int towardStart = isRtl ? View.FOCUS_RIGHT : View.FOCUS_LEFT;
             int towardEnd = isRtl ? View.FOCUS_LEFT : View.FOCUS_RIGHT;
             if (mCanShowHeaders && direction == towardStart) {

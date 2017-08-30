@@ -16,7 +16,6 @@
 
 package android.support.v7.app;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -27,6 +26,7 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
@@ -38,7 +38,6 @@ import android.view.ActionMode;
 import android.view.Window;
 
 @RequiresApi(14)
-@TargetApi(14)
 class AppCompatDelegateImplV14 extends AppCompatDelegateImplV11 {
 
     private static final String KEY_LOCAL_NIGHT_MODE = "appcompat:local_night_mode";
@@ -217,8 +216,10 @@ class AppCompatDelegateImplV14 extends AppCompatDelegateImplV11 {
                 config.uiMode = newNightMode | (config.uiMode & ~Configuration.UI_MODE_NIGHT_MASK);
                 res.updateConfiguration(config, metrics);
 
-                // We may need to flush the Resources' drawable cache due to framework bugs..
-                ResourcesFlusher.flush(res);
+                // We may need to flush the Resources' drawable cache due to framework bugs.
+                if (!(Build.VERSION.SDK_INT >= 26)) {
+                    ResourcesFlusher.flush(res);
+                }
             }
             return true;
         } else {

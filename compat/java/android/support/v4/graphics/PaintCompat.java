@@ -21,7 +21,7 @@ import android.os.Build;
 import android.support.annotation.NonNull;
 
 /**
- * Helper for accessing features in {@link Paint} in a backwards compatible fashion.
+ * Helper for accessing features in {@link Paint}.
  */
 public final class PaintCompat {
 
@@ -35,9 +35,9 @@ public final class PaintCompat {
      */
     public static boolean hasGlyph(@NonNull Paint paint, @NonNull String string) {
         if (Build.VERSION.SDK_INT >= 23) {
-            return PaintCompatApi23.hasGlyph(paint, string);
+            return paint.hasGlyph(string);
         }
-        return PaintCompatGingerbread.hasGlyph(paint, string);
+        return PaintCompatApi14.hasGlyph(paint, string);
     }
 
     private PaintCompat() {}

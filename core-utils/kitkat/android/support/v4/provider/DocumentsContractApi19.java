@@ -16,7 +16,6 @@
 
 package android.support.v4.provider;
 
-import android.annotation.TargetApi;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -29,7 +28,6 @@ import android.text.TextUtils;
 import android.util.Log;
 
 @RequiresApi(19)
-@TargetApi(19)
 class DocumentsContractApi19 {
     private static final String TAG = "DocumentFile";
 
@@ -139,7 +137,11 @@ class DocumentsContractApi19 {
     }
 
     public static boolean delete(Context context, Uri self) {
-        return DocumentsContract.deleteDocument(context.getContentResolver(), self);
+        try {
+            return DocumentsContract.deleteDocument(context.getContentResolver(), self);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public static boolean exists(Context context, Uri self) {

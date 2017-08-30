@@ -58,18 +58,6 @@ public class ViewUtils {
     }
 
     /**
-     * Merge two states as returned by {@link ViewCompat#getMeasuredState(android.view.View)} ()}.
-     * @param curState The current state as returned from a view or the result
-     * of combining multiple views.
-     * @param newState The new view state to combine.
-     * @return Returns a new integer reflecting the combination of the two
-     * states.
-     */
-    public static int combineMeasuredStates(int curState, int newState) {
-        return curState | newState;
-    }
-
-    /**
      * Allow calling the hidden method {@code computeFitSystemWindows(Rect, Rect)} through
      * reflection on {@code view}.
      */

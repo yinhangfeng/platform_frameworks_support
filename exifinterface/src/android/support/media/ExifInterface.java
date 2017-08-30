@@ -19,6 +19,7 @@ package android.support.media;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.location.Location;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.util.Log;
@@ -49,9 +50,10 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -390,10 +392,15 @@ public class ExifInterface {
     public static final int ORIENTATION_FLIP_VERTICAL = 4;  // upside down mirror
     // flipped about top-left <--> bottom-right axis
     public static final int ORIENTATION_TRANSPOSE = 5;
-    public static final int ORIENTATION_ROTATE_90 = 6;  // rotate 90 cw to right it
+    public static final int ORIENTATION_ROTATE_90 = 6;  // rotate 90 degree clockwise
     // flipped about top-right <--> bottom-left axis
     public static final int ORIENTATION_TRANSVERSE = 7;
-    public static final int ORIENTATION_ROTATE_270 = 8;  // rotate 270 to right it
+    public static final int ORIENTATION_ROTATE_270 = 8;  // rotate 270 degree clockwise
+    private static final List<Integer> ROTATION_ORDER = Arrays.asList(ORIENTATION_NORMAL,
+            ORIENTATION_ROTATE_90, ORIENTATION_ROTATE_180, ORIENTATION_ROTATE_270);
+    private static final List<Integer> FLIPPED_ROTATION_ORDER = Arrays.asList(
+            ORIENTATION_FLIP_HORIZONTAL, ORIENTATION_TRANSVERSE, ORIENTATION_FLIP_VERTICAL,
+            ORIENTATION_TRANSPOSE);
 
     // Constants used for white balance
     public static final int WHITEBALANCE_AUTO = 0;
@@ -402,7 +409,7 @@ public class ExifInterface {
     // Maximum size for checking file type signature (see image_type_recognition_lite.cc)
     private static final int SIGNATURE_CHECK_SIZE = 5000;
 
-    private static final byte[] JPEG_SIGNATURE = new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff};
+    static final byte[] JPEG_SIGNATURE = new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff};
     private static final String RAF_SIGNATURE = "FUJIFILMCCD-RAW";
     private static final int RAF_OFFSET_TO_JPEG_IMAGE_OFFSET = 84;
     private static final int RAF_INFO_SIZE = 160;
@@ -438,11 +445,11 @@ public class ExifInterface {
     // image metadata from GPS longitude to camera model name.
 
     // Types of Exif byte alignments (see JEITA CP-3451C Section 4.5.2)
-    private static final short BYTE_ALIGN_II = 0x4949;  // II: Intel order
-    private static final short BYTE_ALIGN_MM = 0x4d4d;  // MM: Motorola order
+    static final short BYTE_ALIGN_II = 0x4949;  // II: Intel order
+    static final short BYTE_ALIGN_MM = 0x4d4d;  // MM: Motorola order
 
     // TIFF Header Fixed Constant (see JEITA CP-3451C Section 4.5.2)
-    private static final byte START_CODE = 0x2a; // 42
+    static final byte START_CODE = 0x2a; // 42
     private static final int IFD_OFFSET = 8;
 
     // Formats for the value in IFD entry (See TIFF 6.0 Section 2, "Image File Directory".)
@@ -461,12 +468,12 @@ public class ExifInterface {
     // Format indicating a new IFD entry (See Adobe PageMaker® 6.0 TIFF Technical Notes, "New Tag")
     private static final int IFD_FORMAT_IFD = 13;
     // Names for the data formats for debugging purpose.
-    private static final String[] IFD_FORMAT_NAMES = new String[] {
+    static final String[] IFD_FORMAT_NAMES = new String[] {
             "", "BYTE", "STRING", "USHORT", "ULONG", "URATIONAL", "SBYTE", "UNDEFINED", "SSHORT",
             "SLONG", "SRATIONAL", "SINGLE", "DOUBLE"
     };
     // Sizes of the components of each IFD value format
-    private static final int[] IFD_FORMAT_BYTES_PER_FORMAT = new int[] {
+    static final int[] IFD_FORMAT_BYTES_PER_FORMAT = new int[] {
             0, 1, 1, 2, 4, 8, 1, 1, 2, 4, 8, 4, 8, 1
     };
     private static final byte[] EXIF_ASCII_PREFIX = new byte[] {
@@ -517,6 +524,10 @@ public class ExifInterface {
     private static class Rational {
         public final long numerator;
         public final long denominator;
+
+        private Rational(double value) {
+            this((long) (value * 10000), 10000);
+        }
 
         private Rational(long numerator, long denominator) {
             // Handle erroneous case
@@ -904,7 +915,7 @@ public class ExifInterface {
     }
 
     // A class for indicating EXIF tag.
-    private static class ExifTag {
+    static class ExifTag {
         public final int number;
         public final String name;
         public final int primaryFormat;
@@ -922,6 +933,24 @@ public class ExifInterface {
             this.number = number;
             this.primaryFormat = primaryFormat;
             this.secondaryFormat = secondaryFormat;
+        }
+
+        private boolean isFormatCompatible(int format) {
+            if (primaryFormat == IFD_FORMAT_UNDEFINED || format == IFD_FORMAT_UNDEFINED) {
+                return true;
+            } else if (primaryFormat == format || secondaryFormat == format) {
+                return true;
+            } else if ((primaryFormat == IFD_FORMAT_ULONG || secondaryFormat == IFD_FORMAT_ULONG)
+                    && format == IFD_FORMAT_USHORT) {
+                return true;
+            } else if ((primaryFormat == IFD_FORMAT_SLONG || secondaryFormat == IFD_FORMAT_SLONG)
+                    && format == IFD_FORMAT_SSHORT) {
+                return true;
+            } else if ((primaryFormat == IFD_FORMAT_DOUBLE || secondaryFormat == IFD_FORMAT_DOUBLE)
+                    && format == IFD_FORMAT_SINGLE) {
+                return true;
+            }
+            return false;
         }
     }
 
@@ -1151,19 +1180,19 @@ public class ExifInterface {
             IFD_TYPE_ORF_CAMERA_SETTINGS, IFD_TYPE_ORF_IMAGE_PROCESSING, IFD_TYPE_PEF})
     public @interface IfdType {}
 
-    private static final int IFD_TYPE_PRIMARY = 0;
+    static final int IFD_TYPE_PRIMARY = 0;
     private static final int IFD_TYPE_EXIF = 1;
     private static final int IFD_TYPE_GPS = 2;
     private static final int IFD_TYPE_INTEROPERABILITY = 3;
-    private static final int IFD_TYPE_THUMBNAIL = 4;
-    private static final int IFD_TYPE_PREVIEW = 5;
+    static final int IFD_TYPE_THUMBNAIL = 4;
+    static final int IFD_TYPE_PREVIEW = 5;
     private static final int IFD_TYPE_ORF_MAKER_NOTE = 6;
     private static final int IFD_TYPE_ORF_CAMERA_SETTINGS = 7;
     private static final int IFD_TYPE_ORF_IMAGE_PROCESSING = 8;
     private static final int IFD_TYPE_PEF = 9;
 
     // List of Exif tag groups
-    private static final ExifTag[][] EXIF_TAGS = new ExifTag[][] {
+    static final ExifTag[][] EXIF_TAGS = new ExifTag[][] {
             IFD_TIFF_TAGS, IFD_EXIF_TAGS, IFD_GPS_TAGS, IFD_INTEROPERABILITY_TAGS,
             IFD_THUMBNAIL_TAGS, IFD_TIFF_TAGS, ORF_MAKER_NOTE_TAGS, ORF_CAMERA_SETTINGS_TAGS,
             ORF_IMAGE_PROCESSING_TAGS, PEF_TAGS
@@ -1185,14 +1214,19 @@ public class ExifInterface {
             new ExifTag(TAG_JPEG_INTERCHANGE_FORMAT_LENGTH, 514, IFD_FORMAT_ULONG);
 
     // Mappings from tag number to tag name and each item represents one IFD tag group.
-    private static final HashMap[] sExifTagMapsForReading = new HashMap[EXIF_TAGS.length];
+    @SuppressWarnings("unchecked")
+    private static final HashMap<Integer, ExifTag>[] sExifTagMapsForReading =
+            new HashMap[EXIF_TAGS.length];
     // Mappings from tag name to tag number and each item represents one IFD tag group.
-    private static final HashMap[] sExifTagMapsForWriting = new HashMap[EXIF_TAGS.length];
+    @SuppressWarnings("unchecked")
+    private static final HashMap<String, ExifTag>[] sExifTagMapsForWriting =
+            new HashMap[EXIF_TAGS.length];
     private static final HashSet<String> sTagSetForCompatibility = new HashSet<>(Arrays.asList(
             TAG_F_NUMBER, TAG_DIGITAL_ZOOM_RATIO, TAG_EXPOSURE_TIME, TAG_SUBJECT_DISTANCE,
             TAG_GPS_TIMESTAMP));
     // Mappings from tag number to IFD type for pointer tags.
-    private static final HashMap sExifPointerTagMap = new HashMap();
+    @SuppressWarnings("unchecked")
+    private static final HashMap<Integer, Integer> sExifPointerTagMap = new HashMap();
 
     // See JPEG File Interchange Format Version 1.02.
     // The following values are defined for handling JPEG streams. In this implementation, we are
@@ -1201,11 +1235,11 @@ public class ExifInterface {
 
     private static final Charset ASCII = Charset.forName("US-ASCII");
     // Identifier for EXIF APP1 segment in JPEG
-    private static final byte[] IDENTIFIER_EXIF_APP1 = "Exif\0\0".getBytes(ASCII);
+    static final byte[] IDENTIFIER_EXIF_APP1 = "Exif\0\0".getBytes(ASCII);
     // JPEG segment markers, that each marker consumes two bytes beginning with 0xff and ending with
     // the indicator. There is no SOF4, SOF8, SOF16 markers in JPEG and SOFx markers indicates start
     // of frame(baseline DCT) and the image size info exists in its beginning part.
-    private static final byte MARKER = (byte) 0xff;
+    static final byte MARKER = (byte) 0xff;
     private static final byte MARKER_SOI = (byte) 0xd8;
     private static final byte MARKER_SOF0 = (byte) 0xc0;
     private static final byte MARKER_SOF1 = (byte) 0xc1;
@@ -1221,9 +1255,9 @@ public class ExifInterface {
     private static final byte MARKER_SOF14 = (byte) 0xce;
     private static final byte MARKER_SOF15 = (byte) 0xcf;
     private static final byte MARKER_SOS = (byte) 0xda;
-    private static final byte MARKER_APP1 = (byte) 0xe1;
+    static final byte MARKER_APP1 = (byte) 0xe1;
     private static final byte MARKER_COM = (byte) 0xfe;
-    private static final byte MARKER_EOI = (byte) 0xd9;
+    static final byte MARKER_EOI = (byte) 0xd9;
 
     // Supported Image File Types
     private static final int IMAGE_TYPE_UNKNOWN = 0;
@@ -1245,8 +1279,8 @@ public class ExifInterface {
 
         // Build up the hash tables to look up Exif tags for reading Exif tags.
         for (int ifdType = 0; ifdType < EXIF_TAGS.length; ++ifdType) {
-            sExifTagMapsForReading[ifdType] = new HashMap();
-            sExifTagMapsForWriting[ifdType] = new HashMap();
+            sExifTagMapsForReading[ifdType] = new HashMap<>();
+            sExifTagMapsForWriting[ifdType] = new HashMap<>();
             for (ExifTag tag : EXIF_TAGS[ifdType]) {
                 sExifTagMapsForReading[ifdType].put(tag.number, tag);
                 sExifTagMapsForWriting[ifdType].put(tag.name, tag);
@@ -1265,7 +1299,8 @@ public class ExifInterface {
     private final String mFilename;
     private final AssetManager.AssetInputStream mAssetInputStream;
     private int mMimeType;
-    private final HashMap[] mAttributes = new HashMap[EXIF_TAGS.length];
+    @SuppressWarnings("unchecked")
+    private final HashMap<String, ExifAttribute>[] mAttributes = new HashMap[EXIF_TAGS.length];
     private ByteOrder mExifByteOrder = ByteOrder.BIG_ENDIAN;
     private boolean mHasThumbnail;
     // The following values used for indicating a thumbnail position.
@@ -1333,9 +1368,9 @@ public class ExifInterface {
         // Retrieves all tag groups. The value from primary image tag group has a higher priority
         // than the value from the thumbnail tag group if there are more than one candidates.
         for (int i = 0; i < EXIF_TAGS.length; ++i) {
-            Object value = mAttributes[i].get(tag);
+            ExifAttribute value = mAttributes[i].get(tag);
             if (value != null) {
-                return (ExifAttribute) value;
+                return value;
             }
         }
         return null;
@@ -1422,7 +1457,7 @@ public class ExifInterface {
     }
 
     /**
-     * Set the value of the specified tag.
+     * Sets the value of the specified tag.
      *
      * @param tag the name of the tag.
      * @param value the value of the tag.
@@ -1441,7 +1476,7 @@ public class ExifInterface {
             } else {
                 try {
                     double doubleValue = Double.parseDouble(value);
-                    value = (long) (doubleValue * 10000L) + "/10000";
+                    value = new Rational(doubleValue).toString();
                 } catch (NumberFormatException e) {
                     Log.w(TAG, "Invalid value for " + tag + " : " + value);
                     return;
@@ -1453,13 +1488,12 @@ public class ExifInterface {
             if (i == IFD_TYPE_THUMBNAIL && !mHasThumbnail) {
                 continue;
             }
-            final Object obj = sExifTagMapsForWriting[i].get(tag);
-            if (obj != null) {
+            final ExifTag exifTag = sExifTagMapsForWriting[i].get(tag);
+            if (exifTag != null) {
                 if (value == null) {
                     mAttributes[i].remove(tag);
                     continue;
                 }
-                final ExifTag exifTag = (ExifTag) obj;
                 Pair<Integer, Integer> guess = guessDataFormat(value);
                 int dataFormat;
                 if (exifTag.primaryFormat == guess.first || exifTag.primaryFormat == guess.second) {
@@ -1563,6 +1597,122 @@ public class ExifInterface {
     }
 
     /**
+     * Resets the {@link #TAG_ORIENTATION} of the image to be {@link #ORIENTATION_NORMAL}.
+     */
+    public void resetOrientation() {
+        setAttribute(TAG_ORIENTATION, Integer.toString(ORIENTATION_NORMAL));
+    }
+
+    /**
+     * Rotates the image by the given degree clockwise. The degree should be a multiple of
+     * 90 (e.g, 90, 180, -90, etc.).
+     *
+     * @param degree The degree of rotation.
+     */
+    public void rotate(int degree) {
+        if (degree % 90 !=0) {
+            throw new IllegalArgumentException("degree should be a multiple of 90");
+        }
+
+        int currentOrientation = getAttributeInt(TAG_ORIENTATION, ORIENTATION_NORMAL);
+        int currentIndex, newIndex;
+        int resultOrientation;
+        if (ROTATION_ORDER.contains(currentOrientation)) {
+            currentIndex = ROTATION_ORDER.indexOf(currentOrientation);
+            newIndex = (currentIndex + degree / 90) % 4;
+            newIndex += newIndex < 0 ? 4 : 0;
+            resultOrientation = ROTATION_ORDER.get(newIndex);
+        } else if (FLIPPED_ROTATION_ORDER.contains(currentOrientation)) {
+            currentIndex = FLIPPED_ROTATION_ORDER.indexOf(currentOrientation);
+            newIndex = (currentIndex + degree / 90) % 4;
+            newIndex += newIndex < 0 ? 4 : 0;
+            resultOrientation = FLIPPED_ROTATION_ORDER.get(newIndex);
+        } else {
+            resultOrientation = ORIENTATION_UNDEFINED;
+        }
+
+        setAttribute(TAG_ORIENTATION, Integer.toString(resultOrientation));
+    }
+
+    /**
+     * Flips the image vertically.
+     */
+    public void flipVertically() {
+        int currentOrientation = getAttributeInt(TAG_ORIENTATION, ORIENTATION_NORMAL);
+        int resultOrientation;
+        switch (currentOrientation) {
+            case ORIENTATION_FLIP_HORIZONTAL:
+                resultOrientation = ORIENTATION_ROTATE_180;
+                break;
+            case ORIENTATION_ROTATE_180:
+                resultOrientation = ORIENTATION_FLIP_HORIZONTAL;
+                break;
+            case ORIENTATION_FLIP_VERTICAL:
+                resultOrientation = ORIENTATION_NORMAL;
+                break;
+            case ORIENTATION_TRANSPOSE:
+                resultOrientation = ORIENTATION_ROTATE_270;
+                break;
+            case ORIENTATION_ROTATE_90:
+                resultOrientation = ORIENTATION_TRANSVERSE;
+                break;
+            case ORIENTATION_TRANSVERSE:
+                resultOrientation = ORIENTATION_ROTATE_90;
+                break;
+            case ORIENTATION_ROTATE_270:
+                resultOrientation = ORIENTATION_TRANSPOSE;
+                break;
+            case ORIENTATION_NORMAL:
+                resultOrientation = ORIENTATION_FLIP_VERTICAL;
+                break;
+            case ORIENTATION_UNDEFINED:
+            default:
+                resultOrientation = ORIENTATION_UNDEFINED;
+                break;
+        }
+        setAttribute(TAG_ORIENTATION, Integer.toString(resultOrientation));
+    }
+
+    /**
+     * Flips the image horizontally.
+     */
+    public void flipHorizontally() {
+        int currentOrientation = getAttributeInt(TAG_ORIENTATION, ORIENTATION_NORMAL);
+        int resultOrientation;
+        switch (currentOrientation) {
+            case ORIENTATION_FLIP_HORIZONTAL:
+                resultOrientation = ORIENTATION_NORMAL;
+                break;
+            case ORIENTATION_ROTATE_180:
+                resultOrientation = ORIENTATION_FLIP_VERTICAL;
+                break;
+            case ORIENTATION_FLIP_VERTICAL:
+                resultOrientation = ORIENTATION_ROTATE_180;
+                break;
+            case ORIENTATION_TRANSPOSE:
+                resultOrientation = ORIENTATION_ROTATE_90;
+                break;
+            case ORIENTATION_ROTATE_90:
+                resultOrientation = ORIENTATION_TRANSPOSE;
+                break;
+            case ORIENTATION_TRANSVERSE:
+                resultOrientation = ORIENTATION_ROTATE_270;
+                break;
+            case ORIENTATION_ROTATE_270:
+                resultOrientation = ORIENTATION_TRANSVERSE;
+                break;
+            case ORIENTATION_NORMAL:
+                resultOrientation = ORIENTATION_FLIP_HORIZONTAL;
+                break;
+            case ORIENTATION_UNDEFINED:
+            default:
+                resultOrientation = ORIENTATION_UNDEFINED;
+                break;
+        }
+        setAttribute(TAG_ORIENTATION, Integer.toString(resultOrientation));
+    }
+
+    /**
      * Update the values of the tags in the tag groups if any value for the tag already was stored.
      *
      * @param tag the name of the tag.
@@ -1600,7 +1750,7 @@ public class ExifInterface {
         try {
             // Initialize mAttributes.
             for (int i = 0; i < EXIF_TAGS.length; ++i) {
-                mAttributes[i] = new HashMap();
+                mAttributes[i] = new HashMap<>();
             }
 
             // Check file type
@@ -1667,8 +1817,8 @@ public class ExifInterface {
     private void printAttributes() {
         for (int i = 0; i < mAttributes.length; ++i) {
             Log.d(TAG, "The size of tag group[" + i + "]: " + mAttributes[i].size());
-            for (Map.Entry entry : (Set<Map.Entry>) mAttributes[i].entrySet()) {
-                final ExifAttribute tagValue = (ExifAttribute) entry.getValue();
+            for (Map.Entry<String, ExifAttribute> entry : mAttributes[i].entrySet()) {
+                final ExifAttribute tagValue = entry.getValue();
                 Log.d(TAG, "tagName: " + entry.getKey() + ", tagType: " + tagValue.toString()
                         + ", tagValue: '" + tagValue.getStringValue(mExifByteOrder) + "'");
             }
@@ -1895,6 +2045,28 @@ public class ExifInterface {
     }
 
     /**
+     * Sets the GPS-related information. It will set GPS processing method, latitude and longitude
+     * values, GPS timestamp, and speed information at the same time.
+     *
+     * @param location the {@link Location} object returned by GPS service.
+     */
+    public void setGpsInfo(Location location) {
+        if (location == null) {
+            return;
+        }
+        setAttribute(ExifInterface.TAG_GPS_PROCESSING_METHOD, location.getProvider());
+        setLatLong(location.getLatitude(), location.getLongitude());
+        setAltitude(location.getAltitude());
+        // Location objects store speeds in m/sec. Translates it to km/hr here.
+        setAttribute(TAG_GPS_SPEED_REF, "K");
+        setAttribute(TAG_GPS_SPEED, new Rational(location.getSpeed()
+                * TimeUnit.HOURS.toSeconds(1) / 1000).toString());
+        String[] dateTime = sFormatter.format(new Date(location.getTime())).split("\\s+");
+        setAttribute(ExifInterface.TAG_GPS_DATESTAMP, dateTime[0]);
+        setAttribute(ExifInterface.TAG_GPS_TIMESTAMP, dateTime[1]);
+    }
+
+    /**
      * Sets the latitude and longitude values.
      *
      * @param latitude the decimal value of latitude. Must be a valid double value between -90.0 and
@@ -1932,6 +2104,27 @@ public class ExifInterface {
         } else {
             return defaultValue;
         }
+    }
+
+    /**
+     * Sets the altitude in meters.
+     */
+    public void setAltitude(double altitude) {
+        String ref = altitude >= 0 ? "0" : "1";
+        setAttribute(TAG_GPS_ALTITUDE, new Rational(Math.abs(altitude)).toString());
+        setAttribute(TAG_GPS_ALTITUDE_REF, ref);
+    }
+
+    /**
+     * Set the date time value.
+     *
+     * @param timeStamp number of milliseconds since Jan. 1, 1970, midnight local time.
+     * @hide
+     */
+    public void setDateTime(long timeStamp) {
+        long sub = timeStamp % 1000;
+        setAttribute(TAG_DATETIME, sFormatter.format(new Date(timeStamp)));
+        setAttribute(TAG_SUBSEC_TIME, Long.toString(sub));
     }
 
     /**
@@ -2417,16 +2610,16 @@ public class ExifInterface {
             readImageFileDirectory(makerNoteDataInputStream, IFD_TYPE_ORF_MAKER_NOTE);
 
             // Retrieve & update preview image offset & length values
-            ExifAttribute imageLengthAttribute = (ExifAttribute)
+            ExifAttribute imageStartAttribute = (ExifAttribute)
                     mAttributes[IFD_TYPE_ORF_CAMERA_SETTINGS].get(TAG_ORF_PREVIEW_IMAGE_START);
-            ExifAttribute bitsPerSampleAttribute = (ExifAttribute)
+            ExifAttribute imageLengthAttribute = (ExifAttribute)
                     mAttributes[IFD_TYPE_ORF_CAMERA_SETTINGS].get(TAG_ORF_PREVIEW_IMAGE_LENGTH);
 
-            if (imageLengthAttribute != null && bitsPerSampleAttribute != null) {
+            if (imageStartAttribute != null && imageLengthAttribute != null) {
                 mAttributes[IFD_TYPE_PREVIEW].put(TAG_JPEG_INTERCHANGE_FORMAT,
-                        imageLengthAttribute);
+                        imageStartAttribute);
                 mAttributes[IFD_TYPE_PREVIEW].put(TAG_JPEG_INTERCHANGE_FORMAT_LENGTH,
-                        bitsPerSampleAttribute);
+                        imageLengthAttribute);
             }
 
             // TODO: Check this behavior in other ORF files
@@ -2599,9 +2792,9 @@ public class ExifInterface {
     }
 
     private void addDefaultValuesForCompatibility() {
-        // The value of DATETIME tag has the same value of DATETIME_ORIGINAL tag.
+        // If DATETIME tag has no value, then set the value to DATETIME_ORIGINAL tag's.
         String valueOfDateTimeOriginal = getAttribute(TAG_DATETIME_ORIGINAL);
-        if (valueOfDateTimeOriginal != null) {
+        if (valueOfDateTimeOriginal != null && getAttribute(TAG_DATETIME) == null) {
             mAttributes[IFD_TYPE_PRIMARY].put(TAG_DATETIME,
                     ExifAttribute.createString(valueOfDateTimeOriginal));
         }
@@ -2680,13 +2873,12 @@ public class ExifInterface {
         }
         // See TIFF 6.0 Section 2: TIFF Structure, Figure 1.
         short numberOfDirectoryEntry = dataInputStream.readShort();
+        if (DEBUG) {
+            Log.d(TAG, "numberOfDirectoryEntry: " + numberOfDirectoryEntry);
+        }
         if (dataInputStream.mPosition + 12 * numberOfDirectoryEntry > dataInputStream.mLength) {
             // Return if the size of entries is too big.
             return;
-        }
-
-        if (DEBUG) {
-            Log.d(TAG, "numberOfDirectoryEntry: " + numberOfDirectoryEntry);
         }
 
         // See TIFF 6.0 Section 2: TIFF Structure, "Image File Directory".
@@ -2712,7 +2904,13 @@ public class ExifInterface {
                 Log.w(TAG, "Skip the tag entry since tag number is not defined: " + tagNumber);
             } else if (dataFormat <= 0 || dataFormat >= IFD_FORMAT_BYTES_PER_FORMAT.length) {
                 Log.w(TAG, "Skip the tag entry since data format is invalid: " + dataFormat);
+            } else if (!tag.isFormatCompatible(dataFormat)) {
+                Log.w(TAG, "Skip the tag entry since data format (" + IFD_FORMAT_NAMES[dataFormat]
+                        + ") is unexpected for tag: " + tag.name);
             } else {
+                if (dataFormat == IFD_FORMAT_UNDEFINED) {
+                    dataFormat = tag.primaryFormat;
+                }
                 byteCount = (long) numberOfComponents * IFD_FORMAT_BYTES_PER_FORMAT[dataFormat];
                 if (byteCount < 0 || byteCount > Integer.MAX_VALUE) {
                     Log.w(TAG, "Skip the tag entry since the number of components is invalid: "
@@ -2772,7 +2970,7 @@ public class ExifInterface {
             }
 
             // Recursively parse IFD when a IFD pointer tag appears.
-            Object nextIfdType = sExifPointerTagMap.get(tagNumber);
+            Integer nextIfdType = sExifPointerTagMap.get(tagNumber);
             if (DEBUG) {
                 Log.d(TAG, "nextIfdType: " + nextIfdType + " byteCount: " + byteCount);
             }
@@ -2808,7 +3006,7 @@ public class ExifInterface {
                 }
                 if (offset > 0L && offset < dataInputStream.mLength) {
                     dataInputStream.seek(offset);
-                    readImageFileDirectory(dataInputStream, (int) nextIfdType);
+                    readImageFileDirectory(dataInputStream, nextIfdType);
                 } else {
                     Log.w(TAG, "Skip jump into the IFD since its offset is invalid: " + offset);
                 }
@@ -3098,7 +3296,7 @@ public class ExifInterface {
         if (mAttributes[IFD_TYPE_THUMBNAIL].isEmpty()) {
             if (isThumbnail(mAttributes[IFD_TYPE_PREVIEW])) {
                 mAttributes[IFD_TYPE_THUMBNAIL] = mAttributes[IFD_TYPE_PREVIEW];
-                mAttributes[IFD_TYPE_PREVIEW] = new HashMap();
+                mAttributes[IFD_TYPE_PREVIEW] = new HashMap<>();
             }
         }
 
@@ -3235,8 +3433,8 @@ public class ExifInterface {
         // value which has a bigger size than 4 bytes.
         for (int i = 0; i < EXIF_TAGS.length; ++i) {
             int sum = 0;
-            for (Map.Entry entry : (Set<Map.Entry>) mAttributes[i].entrySet()) {
-                final ExifAttribute exifAttribute = (ExifAttribute) entry.getValue();
+            for (Map.Entry<String, ExifAttribute> entry : mAttributes[i].entrySet()) {
+                final ExifAttribute exifAttribute = entry.getValue();
                 final int size = exifAttribute.size();
                 if (size > 4) {
                     sum += size;
@@ -3303,12 +3501,11 @@ public class ExifInterface {
 
                 // Write entry info
                 int dataOffset = ifdOffsets[ifdType] + 2 + mAttributes[ifdType].size() * 12 + 4;
-                for (Map.Entry entry : (Set<Map.Entry>) mAttributes[ifdType].entrySet()) {
+                for (Map.Entry<String, ExifAttribute> entry : mAttributes[ifdType].entrySet()) {
                     // Convert tag name to tag number.
-                    final ExifTag tag =
-                            (ExifTag) sExifTagMapsForWriting[ifdType].get(entry.getKey());
+                    final ExifTag tag = sExifTagMapsForWriting[ifdType].get(entry.getKey());
                     final int tagNumber = tag.number;
-                    final ExifAttribute attribute = (ExifAttribute) entry.getValue();
+                    final ExifAttribute attribute = entry.getValue();
                     final int size = attribute.size();
 
                     dataOutputStream.writeUnsignedShort(tagNumber);
@@ -3338,8 +3535,8 @@ public class ExifInterface {
                 }
 
                 // Write values of data field exceeding 4 bytes after the next offset.
-                for (Map.Entry entry : (Set<Map.Entry>) mAttributes[ifdType].entrySet()) {
-                    ExifAttribute attribute = (ExifAttribute) entry.getValue();
+                for (Map.Entry<String, ExifAttribute> entry : mAttributes[ifdType].entrySet()) {
+                    ExifAttribute attribute = entry.getValue();
 
                     if (attribute.bytes.length > 4) {
                         dataOutputStream.write(attribute.bytes, 0, attribute.bytes.length);
@@ -3619,6 +3816,7 @@ public class ExifInterface {
             return skipped;
         }
 
+        @Override
         public int readUnsignedShort() throws IOException {
             mPosition += 2;
             if (mPosition > mLength) {
@@ -3697,10 +3895,12 @@ public class ExifInterface {
             mByteOrder = byteOrder;
         }
 
+        @Override
         public void write(byte[] bytes) throws IOException {
             mOutputStream.write(bytes);
         }
 
+        @Override
         public void write(byte[] bytes, int offset, int length) throws IOException {
             mOutputStream.write(bytes, offset, length);
         }
@@ -3777,7 +3977,7 @@ public class ExifInterface {
 
             if (firstImageLengthValue < secondImageLengthValue &&
                     firstImageWidthValue < secondImageWidthValue) {
-                HashMap tempMap = mAttributes[firstIfdType];
+                HashMap<String, ExifAttribute> tempMap = mAttributes[firstIfdType];
                 mAttributes[firstIfdType] = mAttributes[secondIfdType];
                 mAttributes[secondIfdType] = tempMap;
             }

@@ -19,7 +19,6 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ArgbEvaluator;
 import android.animation.ObjectAnimator;
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -36,7 +35,9 @@ import android.os.Build;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
 import android.support.v4.content.res.ResourcesCompat;
+import android.support.v4.content.res.TypedArrayUtils;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v4.util.ArrayMap;
 import android.util.AttributeSet;
@@ -130,16 +131,11 @@ import java.util.List;
  * <li>Path Morphing (PathType evaluator). This is used for morphing one path into another.</li>
  * <li>Path Interpolation. This is used to defined a flexible interpolator (represented as a path)
  * instead of the system defined ones like LinearInterpolator.</li>
- * </ul>
- * <p/>
- * But not support this one feature yet:
- * <ul>
  * <li>Animating 2 values in one ObjectAnimator according to one path's X value and Y value. One
- * usage is moving one object in both X and Y dimensions along an path.</li> *
+ * usage is moving one object in both X and Y dimensions along an path.</li>
  * </ul>
  */
 
-@SuppressLint("NewApi")
 public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
         implements Animatable2Compat {
     private static final String LOGTAG = "AnimatedVDCompat";
@@ -220,6 +216,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
         }
         Resources resources = context.getResources();
         try {
+            //noinspection AndroidLintResourceType - Parse drawable as XML.
             final XmlPullParser parser = resources.getXml(resId);
             final AttributeSet attrs = Xml.asAttributeSet(parser);
             int type;
@@ -261,7 +258,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
      */
     @Override
     public ConstantState getConstantState() {
-        if (mDelegateDrawable != null) {
+        if (mDelegateDrawable != null && Build.VERSION.SDK_INT >= 24) {
             return new AnimatedVectorDrawableDelegateState(mDelegateDrawable.getConstantState());
         }
         // We can't support constant state in older platform.
@@ -423,7 +420,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
     @Override
     public void setAutoMirrored(boolean mirrored) {
         if (mDelegateDrawable != null) {
-            mDelegateDrawable.setAutoMirrored(mirrored);
+            DrawableCompat.setAutoMirrored(mDelegateDrawable, mirrored);
             return;
         }
         mAnimatedVectorState.mVectorDrawable.setAutoMirrored(mirrored);
@@ -530,6 +527,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
      * Instead of creating a VectorDrawable, create a VectorDrawableCompat instance which contains
      * a delegated VectorDrawable instance.
      */
+    @RequiresApi(24)
     private static class AnimatedVectorDrawableDelegateState extends ConstantState {
         private final ConstantState mDelegateState;
 
@@ -686,6 +684,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
     @Override
     public boolean isRunning() {
         if (mDelegateDrawable != null) {
+            //noinspection AndroidLintNewApi - Implicit when delegate is non-null.
             return ((AnimatedVectorDrawable) mDelegateDrawable).isRunning();
         }
         return mAnimatedVectorState.mAnimatorSet.isRunning();
@@ -694,6 +693,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
     @Override
     public void start() {
         if (mDelegateDrawable != null) {
+            //noinspection AndroidLintNewApi - Implicit when delegate is non-null.
             ((AnimatedVectorDrawable) mDelegateDrawable).start();
             return;
         }
@@ -709,6 +709,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
     @Override
     public void stop() {
         if (mDelegateDrawable != null) {
+            //noinspection AndroidLintNewApi - Implicit when delegate is non-null.
             ((AnimatedVectorDrawable) mDelegateDrawable).stop();
             return;
         }
@@ -736,6 +737,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
      * A helper function to unregister the Animatable2Compat callback from the platform's
      * Animatable2 callback, while keeping the internal array of callback up to date.
      */
+    @RequiresApi(23)
     private static boolean unregisterPlatformCallback(AnimatedVectorDrawable dr,
             Animatable2Compat.AnimationCallback callback) {
         return dr.unregisterAnimationCallback(callback.getPlatformCallback());
@@ -745,6 +747,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
     public void registerAnimationCallback(@NonNull Animatable2Compat.AnimationCallback
             callback) {
         if (mDelegateDrawable != null) {
+            //noinspection AndroidLintNewApi - Implicit when delegate is non-null.
             registerPlatformCallback((AnimatedVectorDrawable) mDelegateDrawable, callback);
             return;
         }
@@ -797,6 +800,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
      * A helper function to register the Animatable2Compat callback on the platform's Animatable2
      * callback.
      */
+    @RequiresApi(23)
     private static void registerPlatformCallback(@NonNull AnimatedVectorDrawable avd,
             @NonNull final Animatable2Compat.AnimationCallback callback) {
         avd.registerAnimationCallback(callback.getPlatformCallback());
@@ -816,6 +820,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
     public boolean unregisterAnimationCallback(
             @NonNull Animatable2Compat.AnimationCallback callback) {
         if (mDelegateDrawable != null) {
+            //noinspection AndroidLintNewApi - Implicit when delegate is non-null.
             unregisterPlatformCallback((AnimatedVectorDrawable) mDelegateDrawable, callback);
         }
 
@@ -835,6 +840,7 @@ public class AnimatedVectorDrawableCompat extends VectorDrawableCommon
     @Override
     public void clearAnimationCallbacks() {
         if (mDelegateDrawable != null) {
+            //noinspection AndroidLintNewApi - Implicit when delegate is non-null.
             ((AnimatedVectorDrawable) mDelegateDrawable).clearAnimationCallbacks();
             return;
         }

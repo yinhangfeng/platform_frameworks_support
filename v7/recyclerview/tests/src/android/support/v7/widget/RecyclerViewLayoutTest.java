@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package android.support.v7.widget;
 
 import static android.support.v7.widget.RecyclerView.NO_POSITION;
@@ -37,6 +36,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -50,15 +50,17 @@ import android.graphics.PointF;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.SystemClock;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.test.filters.FlakyTest;
 import android.support.test.filters.LargeTest;
-import android.support.test.filters.MediumTest;
 import android.support.test.filters.SdkSuppress;
 import android.support.test.filters.Suppress;
 import android.support.test.runner.AndroidJUnit4;
+import android.support.v4.view.NestedScrollingParent2;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.util.TouchUtils;
+import android.support.v7.widget.test.NestedScrollingParent2Adapter;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Gravity;
@@ -85,7 +87,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @RunWith(AndroidJUnit4.class)
-@MediumTest
+@LargeTest
 public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest {
     private static final int FLAG_HORIZONTAL = 1;
     private static final int FLAG_VERTICAL = 1 << 1;
@@ -247,6 +249,112 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
         } else {
             layoutManager.assertNoLayout("nothing is invalid, layout should not happen", 2);
         }
+    }
+
+    @Test
+    public void setAdapterNotifyItemRangeInsertedCrashTest() throws Throwable {
+        final RecyclerView rv = new RecyclerView(getActivity());
+        final TestLayoutManager lm = new LayoutAllLayoutManager(true);
+        lm.setSupportsPredictive(true);
+        rv.setLayoutManager(lm);
+        setRecyclerView(rv);
+        lm.expectLayouts(1);
+        setAdapter(new TestAdapter(1));
+        lm.waitForLayout(2);
+        lm.expectLayouts(1);
+        mActivityRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                final TestAdapter adapter2 = new TestAdapter(0);
+                rv.setAdapter(adapter2);
+                adapter2.addItems(0, 1, "1");
+                adapter2.notifyItemRangeInserted(0, 1);
+            }
+        });
+        lm.waitForLayout(2);
+    }
+
+    @Test
+    public void swapAdapterNotifyItemRangeInsertedCrashTest() throws Throwable {
+        final RecyclerView rv = new RecyclerView(getActivity());
+        final TestLayoutManager lm = new LayoutAllLayoutManager(true);
+        lm.setSupportsPredictive(true);
+        rv.setLayoutManager(lm);
+        setRecyclerView(rv);
+        lm.expectLayouts(1);
+        setAdapter(new TestAdapter(1));
+        lm.waitForLayout(2);
+        lm.expectLayouts(1);
+        mActivityRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                final TestAdapter adapter2 = new TestAdapter(0);
+                rv.swapAdapter(adapter2, true);
+                adapter2.addItems(0, 1, "1");
+                adapter2.notifyItemRangeInserted(0, 1);
+            }
+        });
+        lm.waitForLayout(2);
+    }
+
+    @Test
+    public void predictiveMeasuredCrashTest() throws Throwable {
+        final RecyclerView rv = new RecyclerView(getActivity());
+        final LayoutAllLayoutManager lm = new LayoutAllLayoutManager(true) {
+            @Override
+            public void onAttachedToWindow(RecyclerView view) {
+                super.onAttachedToWindow(view);
+                assertThat(view.mLayout, is((RecyclerView.LayoutManager) this));
+            }
+
+            @Override
+            public void onDetachedFromWindow(RecyclerView view, RecyclerView.Recycler recycler) {
+                super.onDetachedFromWindow(view, recycler);
+                assertThat(view.mLayout, is((RecyclerView.LayoutManager) this));
+            }
+
+            @Override
+            public void onMeasure(RecyclerView.Recycler recycler, RecyclerView.State state,
+                    int widthSpec,
+                    int heightSpec) {
+                if (state.getItemCount() > 0) {
+                    // A typical LayoutManager will use a child view to measure the size.
+                    View v = recycler.getViewForPosition(0);
+                }
+                super.onMeasure(recycler, state, widthSpec, heightSpec);
+            }
+        };
+        lm.setSupportsPredictive(true);
+        lm.setAutoMeasureEnabled(false);
+        rv.setHasFixedSize(false);
+        final TestAdapter adapter = new TestAdapter(0);
+        rv.setAdapter(adapter);
+        rv.setLayoutManager(lm);
+        lm.expectLayouts(1);
+        setRecyclerView(rv);
+        lm.waitForLayout(2);
+        mActivityRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                ViewGroup parent = (ViewGroup) rv.getParent();
+                parent.removeView(rv);
+                // setting RV as child of LinearLayout using MATCH_PARENT will cause
+                // RV.onMeasure() being called twice before layout(). This may cause crash.
+                LinearLayout linearLayout = new LinearLayout(parent.getContext());
+                linearLayout.setOrientation(LinearLayout.VERTICAL);
+                parent.addView(linearLayout,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+                linearLayout.addView(rv, ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+
+            }
+        });
+
+        lm.expectLayouts(1);
+        adapter.addAndNotify(1);
+        lm.waitForLayout(2);
+        checkForMainThreadException();
     }
 
     @Test
@@ -421,7 +529,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
             @Override
             public void run(View view) throws RuntimeException {
                 view.layout(10, 10, 30, 50);
-                ViewCompat.setTranslationX(view, 10);
+                view.setTranslationX(10);
                 assertThat(getTransformedBoundingBox(view), is(new Rect(20, 10, 40, 50)));
             }
         });
@@ -433,7 +541,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
             @Override
             public void run(View view) throws RuntimeException {
                 view.layout(10, 10, 30, 50);
-                ViewCompat.setTranslationY(view, 10);
+                view.setTranslationY(10);
                 assertThat(getTransformedBoundingBox(view), is(new Rect(10, 20, 30, 60)));
             }
         });
@@ -445,7 +553,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
             @Override
             public void run(View view) throws RuntimeException {
                 view.layout(10, 10, 30, 50);
-                ViewCompat.setScaleX(view, 2);
+                view.setScaleX(2);
                 assertThat(getTransformedBoundingBox(view), is(new Rect(0, 10, 40, 50)));
             }
         });
@@ -457,7 +565,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
             @Override
             public void run(View view) throws RuntimeException {
                 view.layout(10, 10, 30, 50);
-                ViewCompat.setScaleY(view, 2);
+                view.setScaleY(2);
                 assertThat(getTransformedBoundingBox(view), is(new Rect(10, -10, 30, 70)));
             }
         });
@@ -469,7 +577,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
             @Override
             public void run(View view) throws RuntimeException {
                 view.layout(10, 10, 30, 50);
-                ViewCompat.setRotation(view, 90);
+                view.setRotation(90);
                 assertThat(getTransformedBoundingBox(view), is(new Rect(0, 20, 40, 40)));
             }
         });
@@ -500,7 +608,7 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
                 // trigger decor offsets calculation
                 calculateItemDecorationsForChild(view, new Rect());
                 view.layout(10, 10, 30, 50);
-                ViewCompat.setRotation(view, 90);
+                view.setRotation(90);
                 assertThat(RecyclerViewLayoutTest.this.getTransformedBoundingBox(view),
                         is(new Rect(-4, 19, 42, 43)));
 
@@ -1344,38 +1452,110 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
         scrollInOtherOrientationTest(FLAG_VERTICAL | FLAG_FLING);
     }
 
+    @SuppressWarnings("WrongConstant")
     @Test
     public void nestedDragVertical() throws Throwable {
-        TestedFrameLayout tfl = getActivity().getContainer();
-        tfl.setNestedScrollMode(TestedFrameLayout.TEST_NESTED_SCROLL_MODE_CONSUME);
-        tfl.setNestedFlingMode(TestedFrameLayout.TEST_NESTED_SCROLL_MODE_CONSUME);
+        final NestedScrollingParent2 nsp = spy(new FullyConsumingNestedScroller());
+        getActivity().getContainer().setNestedScrollingDelegate(nsp);
+        // Scroll and expect the RV to not scroll
         scrollInOtherOrientationTest(FLAG_VERTICAL, 0);
+
+        // Verify that the touch nested scroll was started and finished
+        verify(nsp, atLeastOnce()).onStartNestedScroll(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_VERTICAL), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, atLeastOnce()).onNestedScrollAccepted(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_VERTICAL), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, atLeastOnce()).onNestedPreScroll(eq(mRecyclerView), anyInt(), anyInt(),
+                any(int[].class), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, atLeastOnce()).onStopNestedScroll(eq(mRecyclerView), eq(ViewCompat.TYPE_TOUCH));
+
+        // Verify that the non-touch events were dispatched by the fling settle
+        verify(nsp, times(1)).onStartNestedScroll(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_VERTICAL), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, times(1)).onNestedScrollAccepted(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_VERTICAL), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, atLeastOnce()).onNestedPreScroll(eq(mRecyclerView), anyInt(), anyInt(),
+                any(int[].class), eq(ViewCompat.TYPE_NON_TOUCH));
     }
 
+    @SuppressWarnings("WrongConstant")
     @Test
     public void nestedDragHorizontal() throws Throwable {
-        TestedFrameLayout tfl = getActivity().getContainer();
-        tfl.setNestedScrollMode(TestedFrameLayout.TEST_NESTED_SCROLL_MODE_CONSUME);
-        tfl.setNestedFlingMode(TestedFrameLayout.TEST_NESTED_SCROLL_MODE_CONSUME);
+        final NestedScrollingParent2 nsp = spy(new FullyConsumingNestedScroller());
+        getActivity().getContainer().setNestedScrollingDelegate(nsp);
+        // Scroll and expect the RV to not scroll
         scrollInOtherOrientationTest(FLAG_HORIZONTAL, 0);
+
+        // Verify that the touch nested scroll was started and finished
+        verify(nsp, atLeastOnce()).onStartNestedScroll(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_HORIZONTAL), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, atLeastOnce()).onNestedScrollAccepted(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_HORIZONTAL), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, atLeastOnce()).onNestedPreScroll(eq(mRecyclerView), anyInt(), anyInt(),
+                any(int[].class), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, atLeastOnce()).onStopNestedScroll(eq(mRecyclerView), eq(ViewCompat.TYPE_TOUCH));
+
+        // Verify that the non-touch events were dispatched by the fling settle
+        verify(nsp, times(1)).onStartNestedScroll(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_HORIZONTAL), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, times(1)).onNestedScrollAccepted(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_HORIZONTAL), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, atLeastOnce()).onNestedPreScroll(eq(mRecyclerView), anyInt(), anyInt(),
+                any(int[].class), eq(ViewCompat.TYPE_NON_TOUCH));
     }
 
+    @SuppressWarnings("WrongConstant")
     @Test
-    public void nestedDragHorizontalCallsStopNestedScroll() throws Throwable {
-        TestedFrameLayout tfl = getActivity().getContainer();
-        tfl.setNestedScrollMode(TestedFrameLayout.TEST_NESTED_SCROLL_MODE_CONSUME);
-        tfl.setNestedFlingMode(TestedFrameLayout.TEST_NESTED_SCROLL_MODE_CONSUME);
-        scrollInOtherOrientationTest(FLAG_HORIZONTAL, 0);
-        assertTrue("onStopNestedScroll called", tfl.stopNestedScrollCalled());
+    public void nestedFlingVertical() throws Throwable {
+        final NestedScrollingParent2 nsp = spy(new FullyConsumingNestedScroller());
+        getActivity().getContainer().setNestedScrollingDelegate(nsp);
+        // Fling and expect the RV to not scroll
+        scrollInOtherOrientationTest(FLAG_VERTICAL | FLAG_FLING, FLAG_FLING);
+
+        // Verify that the touch nested scroll was not started
+        verify(nsp, never()).onStartNestedScroll(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_VERTICAL), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, never()).onNestedScrollAccepted(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_VERTICAL), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, never()).onNestedPreScroll(eq(mRecyclerView), anyInt(), anyInt(),
+                any(int[].class), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, never()).onStopNestedScroll(mRecyclerView, ViewCompat.TYPE_TOUCH);
+
+        // Verify that the non-touch nested scroll was started and finished
+        verify(nsp, times(1)).onStartNestedScroll(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_VERTICAL), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, times(1)).onNestedScrollAccepted(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_VERTICAL), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, atLeastOnce()).onNestedPreScroll(eq(mRecyclerView), anyInt(), anyInt(),
+                any(int[].class), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, times(1)).onStopNestedScroll(mRecyclerView, ViewCompat.TYPE_NON_TOUCH);
     }
 
+    @SuppressWarnings("WrongConstant")
     @Test
-    public void nestedDragVerticalCallsStopNestedScroll() throws Throwable {
-        TestedFrameLayout tfl = getActivity().getContainer();
-        tfl.setNestedScrollMode(TestedFrameLayout.TEST_NESTED_SCROLL_MODE_CONSUME);
-        tfl.setNestedFlingMode(TestedFrameLayout.TEST_NESTED_SCROLL_MODE_CONSUME);
-        scrollInOtherOrientationTest(FLAG_VERTICAL, 0);
-        assertTrue("onStopNestedScroll called", tfl.stopNestedScrollCalled());
+    public void nestedFlingHorizontal() throws Throwable {
+        final NestedScrollingParent2 nsp = spy(new FullyConsumingNestedScroller());
+        getActivity().getContainer().setNestedScrollingDelegate(nsp);
+        // Fling and expect the RV to not scroll
+        scrollInOtherOrientationTest(FLAG_HORIZONTAL | FLAG_FLING, FLAG_FLING);
+
+        // Verify that the touch nested scroll was not started
+        verify(nsp, never()).onStartNestedScroll(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_HORIZONTAL), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, never()).onNestedScrollAccepted(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_HORIZONTAL), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, never()).onNestedPreScroll(eq(mRecyclerView), anyInt(), anyInt(),
+                any(int[].class), eq(ViewCompat.TYPE_TOUCH));
+        verify(nsp, never()).onStopNestedScroll(mRecyclerView, ViewCompat.TYPE_TOUCH);
+
+        // Verify that the non-touch nested scroll was started and finished
+        verify(nsp, times(1)).onStartNestedScroll(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_HORIZONTAL), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, times(1)).onNestedScrollAccepted(eq(mRecyclerView), eq(mRecyclerView),
+                eq(ViewCompat.SCROLL_AXIS_HORIZONTAL), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, atLeastOnce()).onNestedPreScroll(eq(mRecyclerView), anyInt(), anyInt(),
+                any(int[].class), eq(ViewCompat.TYPE_NON_TOUCH));
+        verify(nsp, times(1)).onStopNestedScroll(mRecyclerView, ViewCompat.TYPE_NON_TOUCH);
     }
 
     private void scrollInOtherOrientationTest(int flags)
@@ -4463,4 +4643,108 @@ public class RecyclerViewLayoutTest extends BaseRecyclerViewInstrumentationTest 
     private interface ViewRunnable {
         void run(View view) throws RuntimeException;
     }
+
+    public static class FullyConsumingNestedScroller extends NestedScrollingParent2Adapter {
+        @Override
+        public boolean onStartNestedScroll(@NonNull View child, @NonNull View target,
+                @ViewCompat.ScrollAxis int axes, @ViewCompat.NestedScrollType int type) {
+            // Always start regardless of type
+            return true;
+        }
+
+        @Override
+        public void onNestedPreScroll(@NonNull View target, int dx, int dy,
+                @Nullable int[] consumed, @ViewCompat.NestedScrollType int type) {
+            // Consume everything!
+            consumed[0] = dx;
+            consumed[1] = dy;
+        }
+
+        @Override
+        public int getNestedScrollAxes() {
+            return ViewCompat.SCROLL_AXIS_VERTICAL | ViewCompat.SCROLL_AXIS_HORIZONTAL;
+        }
+
+        @Override
+        public void onStopNestedScroll(View target) {
+            super.onStopNestedScroll(target);
+        }
+
+        @Override
+        public void onStopNestedScroll(@NonNull View target,
+                @ViewCompat.NestedScrollType int type) {
+            super.onStopNestedScroll(target, type);
+        }
+    }
+
+    @Test
+    public void testRemainingScrollInLayout() throws Throwable {
+        final RecyclerView recyclerView = new RecyclerView(getActivity());
+        final TestAdapter adapter = new TestAdapter(100);
+
+        final CountDownLatch firstScrollDone = new CountDownLatch(1);
+        final CountDownLatch scrollFinished = new CountDownLatch(1);
+        final int[] totalScrollDistance = new int[] {0};
+        recyclerView.setLayoutManager(new TestLayoutManager() {
+            @Override
+            public void onLayoutChildren(RecyclerView.Recycler recycler, RecyclerView.State state) {
+                if (firstScrollDone.getCount() < 1 && scrollFinished.getCount() == 1) {
+                    try {
+                        assertTrue("layout pass has remaining scroll",
+                                state.getRemainingScrollVertical() != 0);
+                        assertEquals("layout pass has remaining scroll",
+                                1000 - totalScrollDistance[0], state.getRemainingScrollVertical());
+                    } catch (Throwable throwable) {
+                        postExceptionToInstrumentation(throwable);
+                    }
+                }
+                super.onLayoutChildren(recycler, state);
+            }
+
+            @Override
+            public int scrollVerticallyBy(int dy, RecyclerView.Recycler recycler,
+                    RecyclerView.State state) {
+                firstScrollDone.countDown();
+                totalScrollDistance[0] += dy;
+                if (state.getRemainingScrollVertical() == 0) {
+                    // the last scroll pass will have remaining 0
+                    scrollFinished.countDown();
+                }
+                return super.scrollVerticallyBy(dy, recycler, state);
+            }
+
+            @Override
+            public boolean canScrollVertically() {
+                return true;
+            }
+        });
+        recyclerView.setAdapter(adapter);
+        mActivityRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    setRecyclerView(recyclerView);
+                    recyclerView.smoothScrollBy(0, 1000);
+                } catch (Throwable throwable) {
+                    postExceptionToInstrumentation(throwable);
+                }
+            }
+        });
+
+        firstScrollDone.await(1, TimeUnit.SECONDS);
+        mActivityRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    recyclerView.requestLayout();
+                } catch (Throwable throwable) {
+                    postExceptionToInstrumentation(throwable);
+                }
+            }
+        });
+        waitForIdleScroll(recyclerView);
+        assertTrue(scrollFinished.getCount() < 1);
+        assertEquals(totalScrollDistance[0], 1000);
+    }
+
 }

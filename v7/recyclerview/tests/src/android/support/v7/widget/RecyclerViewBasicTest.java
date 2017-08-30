@@ -24,6 +24,7 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.content.Context;
 import android.os.Build;
@@ -57,7 +58,6 @@ import java.util.UUID;
 public class RecyclerViewBasicTest {
 
     RecyclerView mRecyclerView;
-
 
     @Before
     public void setUp() throws Exception {
@@ -457,6 +457,27 @@ public class RecyclerViewBasicTest {
         holder.mNestedRecyclerView = new WeakReference<>(recyclerView);
         RecyclerView.clearNestedRecyclerViewIfNotNested(holder);
         assertEquals(recyclerView, holder.mNestedRecyclerView.get());
+    }
+
+    @Test
+    public void exceptionContainsClasses() {
+        RecyclerView first = new RecyclerView(getContext());
+        first.setLayoutManager(new LinearLayoutManager(getContext()));
+        first.setAdapter(new MockAdapter(10));
+
+        RecyclerView second = new RecyclerView(getContext());
+        try {
+            second.setLayoutManager(first.getLayoutManager());
+            fail("exception expected");
+        } catch (IllegalArgumentException e) {
+            // Note: exception contains first RV
+            String m = e.getMessage();
+            assertTrue("must contain RV class", m.contains(RecyclerView.class.getName()));
+            assertTrue("must contain Adapter class", m.contains(MockAdapter.class.getName()));
+            assertTrue("must contain LM class", m.contains(LinearLayoutManager.class.getName()));
+            assertTrue("must contain ctx class", m.contains(getContext().getClass().getName()));
+
+        }
     }
 
     static class MockLayoutManager extends RecyclerView.LayoutManager {

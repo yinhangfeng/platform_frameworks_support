@@ -21,9 +21,6 @@
      to come from a domain that you own or have control over. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.android.support.transition">
-
-    <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="23" />
-
     <application android:label="@string/activity_sample_code"
             android:supportsRtl="true"
             android:icon="@drawable/app_sample_code"
@@ -57,6 +54,60 @@
 
         <activity android:name=".widget.BeginDelayedUsage"
                   android:label="@string/beginDelayed"
+                  android:theme="@style/Theme.Transition">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.example.android.support.transition.SAMPLE_CODE" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".widget.ArcMotionUsage"
+                  android:label="@string/arcMotion"
+                  android:theme="@style/Theme.Transition">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.example.android.support.transition.SAMPLE_CODE" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".widget.ExplodeUsage"
+                  android:label="@string/explode"
+                  android:theme="@style/Theme.Transition">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.example.android.support.transition.SAMPLE_CODE" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".widget.ChangeClipBoundsUsage"
+                  android:label="@string/clipBounds"
+                  android:theme="@style/Theme.Transition">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.example.android.support.transition.SAMPLE_CODE" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".widget.ChangeTransformUsage"
+                  android:label="@string/changeTransform"
+                  android:theme="@style/Theme.Transition">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.example.android.support.transition.SAMPLE_CODE" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".widget.ChangeImageTransformUsage"
+                  android:label="@string/changeImageTransform"
+                  android:theme="@style/Theme.Transition">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.example.android.support.transition.SAMPLE_CODE" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".widget.ReparentImageUsage"
+                  android:label="@string/reparentImage"
                   android:theme="@style/Theme.Transition">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

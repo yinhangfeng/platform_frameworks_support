@@ -1,0 +1,39 @@
+apply plugin: android.support.SupportLibraryPlugin
+archivesBaseName = 'wear'
+
+dependencies {
+    api project(':support-annotations')
+    api project(':support-core-ui')
+    api project(':support-percent')
+    api project(':support-recyclerview-v7')
+
+    androidTestImplementation (libs.test_runner) {
+        exclude module: 'support-annotations'
+    }
+    androidTestImplementation (libs.espresso_core) {
+        exclude module: 'support-annotations'
+    }
+    androidTestImplementation libs.mockito_core
+    androidTestImplementation libs.dexmaker_mockito
+}
+
+android {
+    defaultConfig {
+        minSdkVersion 23
+    }
+
+    sourceSets {
+        main.java.srcDir 'src'
+        main.res.srcDirs 'res', 'res-public'
+    }
+
+    buildTypes.all {
+        consumerProguardFiles 'proguard-rules.pro'
+    }
+}
+
+supportLibrary {
+    name 'Android Wear Support UI'
+    inceptionYear '2016'
+    description 'Android Wear Support UI'
+}

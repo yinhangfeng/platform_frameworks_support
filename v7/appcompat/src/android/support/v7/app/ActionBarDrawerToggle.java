@@ -15,7 +15,6 @@
  */
 package android.support.v7.app;
 
-import android.annotation.TargetApi;
 import android.app.ActionBar;
 import android.app.Activity;
 import android.content.Context;
@@ -523,7 +522,6 @@ public class ActionBarDrawerToggle implements DrawerLayout.DrawerListener {
      * Delegate if SDK version is between Honeycomb and ICS
      */
     @RequiresApi(11)
-    @TargetApi(11)
     private static class HoneycombDelegate implements Delegate {
 
         final Activity mActivity;
@@ -572,7 +570,6 @@ public class ActionBarDrawerToggle implements DrawerLayout.DrawerListener {
      * Delegate if SDK version is between ICS and JBMR2
      */
     @RequiresApi(14)
-    @TargetApi(14)
     private static class IcsDelegate extends HoneycombDelegate {
 
         IcsDelegate(Activity activity) {
@@ -596,7 +593,6 @@ public class ActionBarDrawerToggle implements DrawerLayout.DrawerListener {
      * Delegate if SDK version is JB MR2 or newer
      */
     @RequiresApi(18)
-    @TargetApi(18)
     private static class JellybeanMr2Delegate implements Delegate {
 
         final Activity mActivity;

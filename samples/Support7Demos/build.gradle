@@ -21,8 +21,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
-        minSdkVersion 9
+        minSdkVersion 14
         targetSdkVersion rootProject.ext.currentSdk
+        vectorDrawables.useSupportLibrary = true
     }
 
     sourceSets {
@@ -33,7 +34,8 @@ android {
     }
 
     lintOptions {
-        abortOnError false
+        abortOnError true
+        check 'NewApi'
     }
 
     compileOptions {

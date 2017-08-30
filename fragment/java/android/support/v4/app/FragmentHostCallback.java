@@ -350,8 +350,7 @@ public abstract class FragmentHostCallback<E> extends FragmentContainer {
 
     void restoreLoaderNonConfig(SimpleArrayMap<String, LoaderManager> loaderManagers) {
         if (loaderManagers != null) {
-            final int numLoaderManagers = loaderManagers.size();
-            for (int i = 0; i < numLoaderManagers; i++) {
+            for (int i = 0, N = loaderManagers.size(); i < N; i++) {
                 ((LoaderManagerImpl) loaderManagers.valueAt(i)).updateHostController(this);
             }
         }

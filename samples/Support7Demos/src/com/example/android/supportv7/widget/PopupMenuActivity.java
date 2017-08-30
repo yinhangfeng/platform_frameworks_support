@@ -17,6 +17,7 @@
 package com.example.android.supportv7.widget;
 
 import android.os.Bundle;
+import android.support.v4.view.MenuItemCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.PopupMenu;
 import android.support.v7.widget.SwitchCompat;
@@ -46,7 +47,7 @@ public class PopupMenuActivity extends AppCompatActivity {
 
         mDateFormat = new SimpleDateFormat("HH:mm:ss.SSS");
 
-        final ViewGroup container = (ViewGroup) findViewById(R.id.container);
+        final ViewGroup container = findViewById(R.id.container);
         mLog = (TextView) container.findViewById(R.id.log);
 
         final SwitchCompat elevationToggle = (SwitchCompat) container.findViewById(
@@ -65,8 +66,14 @@ public class PopupMenuActivity extends AppCompatActivity {
                     popupMenu = new PopupMenu(container.getContext(), button, Gravity.NO_GRAVITY,
                             0, R.style.CustomPopupNoElevation);
                 }
+
                 final MenuInflater menuInflater = popupMenu.getMenuInflater();
                 menuInflater.inflate(R.menu.popup_menu, popupMenu.getMenu());
+                final MenuItem editItem = popupMenu.getMenu().findItem(R.id.action_edit);
+                MenuItemCompat.setContentDescription(editItem,
+                        getString(R.string.popup_menu_edit_description));
+                MenuItemCompat.setTooltipText(editItem,
+                        getString(R.string.popup_menu_edit_tooltip));
 
                 // Register a listener to be notified when a menu item in our popup menu has
                 // been clicked.

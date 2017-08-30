@@ -16,6 +16,13 @@
 
 package android.support.v4.app;
 
+import static android.support.v4.app.NotificationCompat.DEFAULT_SOUND;
+import static android.support.v4.app.NotificationCompat.DEFAULT_VIBRATE;
+import static android.support.v4.app.NotificationCompat.FLAG_GROUP_SUMMARY;
+import static android.support.v4.app.NotificationCompat.GROUP_ALERT_ALL;
+import static android.support.v4.app.NotificationCompat.GROUP_ALERT_CHILDREN;
+import static android.support.v4.app.NotificationCompat.GROUP_ALERT_SUMMARY;
+
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -23,30 +30,12 @@ import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.support.annotation.RequiresApi;
-import android.annotation.TargetApi;
 import android.widget.RemoteViews;
 
 import java.util.ArrayList;
 
 @RequiresApi(21)
-@TargetApi(21)
 class NotificationCompatApi21 {
-
-    public static final String CATEGORY_CALL = Notification.CATEGORY_CALL;
-    public static final String CATEGORY_MESSAGE = Notification.CATEGORY_MESSAGE;
-    public static final String CATEGORY_EMAIL = Notification.CATEGORY_EMAIL;
-    public static final String CATEGORY_EVENT = Notification.CATEGORY_EVENT;
-    public static final String CATEGORY_PROMO = Notification.CATEGORY_PROMO;
-    public static final String CATEGORY_ALARM = Notification.CATEGORY_ALARM;
-    public static final String CATEGORY_PROGRESS = Notification.CATEGORY_PROGRESS;
-    public static final String CATEGORY_SOCIAL = Notification.CATEGORY_SOCIAL;
-    public static final String CATEGORY_ERROR = Notification.CATEGORY_ERROR;
-    public static final String CATEGORY_TRANSPORT = Notification.CATEGORY_TRANSPORT;
-    public static final String CATEGORY_SYSTEM = Notification.CATEGORY_SYSTEM;
-    public static final String CATEGORY_SERVICE = Notification.CATEGORY_SERVICE;
-    public static final String CATEGORY_RECOMMENDATION = Notification.CATEGORY_RECOMMENDATION;
-    public static final String CATEGORY_STATUS = Notification.CATEGORY_STATUS;
-
     private static final String KEY_AUTHOR = "author";
     private static final String KEY_TEXT = "text";
     private static final String KEY_MESSAGES = "messages";
@@ -63,6 +52,7 @@ class NotificationCompatApi21 {
         private RemoteViews mContentView;
         private RemoteViews mBigContentView;
         private RemoteViews mHeadsUpContentView;
+        private int mGroupAlertBehavior;
 
         public Builder(Context context, Notification n,
                 CharSequence contentTitle, CharSequence contentText, CharSequence contentInfo,
@@ -73,7 +63,7 @@ class NotificationCompatApi21 {
                 String category, ArrayList<String> people, Bundle extras, int color,
                 int visibility, Notification publicVersion, String groupKey, boolean groupSummary,
                 String sortKey, RemoteViews contentView, RemoteViews bigContentView,
-                RemoteViews headsUpContentView) {
+                RemoteViews headsUpContentView, int groupAlertBehavior) {
             b = new Notification.Builder(context)
                     .setWhen(n.when)
                     .setShowWhen(showWhen)
@@ -118,6 +108,7 @@ class NotificationCompatApi21 {
             mContentView = contentView;
             mBigContentView = bigContentView;
             mHeadsUpContentView = headsUpContentView;
+            mGroupAlertBehavior = groupAlertBehavior;
         }
 
         @Override
@@ -143,12 +134,30 @@ class NotificationCompatApi21 {
             if (mHeadsUpContentView != null) {
                 notification.headsUpContentView = mHeadsUpContentView;
             }
+
+            if (mGroupAlertBehavior != GROUP_ALERT_ALL) {
+                // if is summary and only children should alert
+                if (notification.getGroup() != null
+                        && (notification.flags & FLAG_GROUP_SUMMARY) != 0
+                        && mGroupAlertBehavior == GROUP_ALERT_CHILDREN) {
+                    removeSoundAndVibration(notification);
+                }
+                // if is group child and only summary should alert
+                if (notification.getGroup() != null
+                        && (notification.flags & FLAG_GROUP_SUMMARY) == 0
+                        && mGroupAlertBehavior == GROUP_ALERT_SUMMARY) {
+                    removeSoundAndVibration(notification);
+                }
+            }
             return notification;
         }
-    }
 
-    public static String getCategory(Notification notif) {
-        return notif.category;
+        private void removeSoundAndVibration(Notification notification) {
+            notification.sound = null;
+            notification.vibrate = null;
+            notification.defaults &= ~DEFAULT_SOUND;
+            notification.defaults &= ~DEFAULT_VIBRATE;
+        }
     }
 
     static Bundle getBundleForUnreadConversation(NotificationCompatBase.UnreadConversation uc) {
@@ -244,6 +253,7 @@ class NotificationCompatApi21 {
                 remoteInput.getLabel(),
                 remoteInput.getChoices(),
                 remoteInput.getAllowFreeFormInput(),
-                remoteInput.getExtras());
+                remoteInput.getExtras(),
+                null /* allowedDataTypes */);
     }
 }

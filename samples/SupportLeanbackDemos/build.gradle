@@ -1,8 +1,8 @@
 apply plugin: 'com.android.application'
 
 dependencies {
-    compile project(':support-leanback-v17')
-    compile project(':support-preference-leanback-v17')
+    implementation project(':support-leanback-v17')
+    implementation project(':support-preference-leanback-v17')
 }
 
 android {
@@ -10,6 +10,7 @@ android {
 
     defaultConfig {
         minSdkVersion 17
+        targetSdkVersion project.ext.currentSdk
     }
 
     sourceSets {
@@ -19,8 +20,16 @@ android {
         main.res.srcDirs = ['res']
     }
 
+    signingConfigs {
+        debug {
+            // Use a local debug keystore to avoid build server issues.
+            storeFile project.rootProject.init.debugKeystore
+        }
+    }
+
     lintOptions {
         abortOnError false
+        check 'NewApi'
     }
 
     compileOptions {

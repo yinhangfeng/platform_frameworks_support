@@ -16,9 +16,9 @@
 
 package android.support.animation;
 
-import android.os.Build;
 import android.os.Looper;
 import android.support.annotation.FloatRange;
+import android.support.v4.view.ViewCompat;
 import android.util.AndroidRuntimeException;
 import android.view.View;
 
@@ -85,18 +85,12 @@ public abstract class DynamicAnimation<T extends DynamicAnimation<T>>
     public static final ViewProperty TRANSLATION_Z = new ViewProperty("translationZ") {
         @Override
         public void setValue(View view, float value) {
-            if (isZSupported()) {
-                view.setTranslationZ(value);
-            }
+            ViewCompat.setTranslationZ(view, value);
         }
 
         @Override
         public float getValue(View view) {
-            if (isZSupported()) {
-                return view.getTranslationZ();
-            } else {
-                return 0;
-            }
+            return ViewCompat.getTranslationZ(view);
         }
     };
 
@@ -211,18 +205,12 @@ public abstract class DynamicAnimation<T extends DynamicAnimation<T>>
     public static final ViewProperty Z = new ViewProperty("z") {
         @Override
         public void setValue(View view, float value) {
-            if (isZSupported()) {
-                view.setZ(value);
-            }
+            ViewCompat.setZ(view, value);
         }
 
         @Override
         public float getValue(View view) {
-            if (isZSupported()) {
-                return view.getZ();
-            } else {
-                return 0;
-            }
+            return ViewCompat.getZ(view);
         }
     };
 
@@ -392,7 +380,8 @@ public abstract class DynamicAnimation<T extends DynamicAnimation<T>>
     }
 
     /**
-     * Start velocity of the animation. Default velocity is 0. Unit: pixel/second
+     * Start velocity of the animation. Default velocity is 0. Unit: change in property per
+     * second (e.g. pixels per second, scale/alpha value change per second).
      *
      * <p>Note when using a fixed value as the start velocity (as opposed to getting the velocity
      * through touch events), it is recommended to define such a value in dp/second and convert it
@@ -405,7 +394,7 @@ public abstract class DynamicAnimation<T extends DynamicAnimation<T>>
      *         getResources().getDisplayMetrics());
      * </pre>
      *
-     * @param startVelocity start velocity of the animation in pixel/second
+     * @param startVelocity start velocity of the animation
      * @return the Animation whose start velocity is being set
      */
     public T setStartVelocity(float startVelocity) {
@@ -689,13 +678,6 @@ public abstract class DynamicAnimation<T extends DynamicAnimation<T>>
             }
         }
         removeNullEntries(mEndListeners);
-    }
-
-    /**
-     * Returns whether z and translationZ are supported on the current build version.
-     */
-    private static boolean isZSupported() {
-        return Build.VERSION.SDK_INT >= 21;
     }
 
     /**

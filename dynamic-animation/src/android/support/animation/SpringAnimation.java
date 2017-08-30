@@ -18,7 +18,6 @@ package android.support.animation;
 
 import android.os.Looper;
 import android.util.AndroidRuntimeException;
-import android.view.View;
 
 /**
  * SpringAnimation is an animation that is driven by a {@link SpringForce}. The spring force defines
@@ -105,33 +104,6 @@ public final class SpringAnimation extends DynamicAnimation<SpringAnimation> {
     public <K> SpringAnimation(K object, FloatPropertyCompat<K> property,
             float finalPosition) {
         super(object, property);
-        mSpring = new SpringForce(finalPosition);
-    }
-
-    /**
-     * @deprecated This API is being replaced with
-     * {@link #SpringAnimation(Object, FloatPropertyCompat)}.
-     *
-     * <p><b>Note: </b> Migration to the new API should require no modification to callers of this
-     * deprecated API.  The new API's parameters are the base class of the original's parameters and
-     * therefore is compatible to calls to this deprecated method.
-     */
-    @Deprecated
-    public SpringAnimation(View v, ViewProperty property) {
-        super(v, property);
-    }
-
-    /**
-     * @deprecated This API is being replaced with
-     * {@link #SpringAnimation(Object, FloatPropertyCompat, float)}.
-     *
-     * <p><b>Note: </b> Migration to the new API should require no modification to callers of this
-     * deprecated API.  The new API's parameters are the base class of the original's parameters and
-     * therefore is compatible to calls to this deprecated method.
-     */
-    @Deprecated
-    public SpringAnimation(View v, ViewProperty property, float finalPosition) {
-        super(v, property);
         mSpring = new SpringForce(finalPosition);
     }
 

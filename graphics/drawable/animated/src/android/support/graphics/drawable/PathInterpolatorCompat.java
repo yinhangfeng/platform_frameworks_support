@@ -26,6 +26,8 @@ import android.content.res.TypedArray;
 import android.graphics.Path;
 import android.graphics.PathMeasure;
 import android.support.annotation.RestrictTo;
+import android.support.v4.content.res.TypedArrayUtils;
+import android.support.v4.graphics.PathParser;
 import android.util.AttributeSet;
 import android.view.InflateException;
 import android.view.animation.Interpolator;

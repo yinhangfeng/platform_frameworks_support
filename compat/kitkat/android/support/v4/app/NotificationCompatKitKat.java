@@ -22,7 +22,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.support.annotation.RequiresApi;
-import android.annotation.TargetApi;
 import android.util.SparseArray;
 import android.widget.RemoteViews;
 
@@ -30,7 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RequiresApi(19)
-@TargetApi(19)
 class NotificationCompatKitKat {
     public static class Builder implements NotificationBuilderWithBuilderAccessor,
             NotificationBuilderWithActions {
@@ -83,18 +81,18 @@ class NotificationCompatKitKat {
                         people.toArray(new String[people.size()]));
             }
             if (localOnly) {
-                mExtras.putBoolean(NotificationCompatJellybean.EXTRA_LOCAL_ONLY, true);
+                mExtras.putBoolean(NotificationCompatExtras.EXTRA_LOCAL_ONLY, true);
             }
             if (groupKey != null) {
-                mExtras.putString(NotificationCompatJellybean.EXTRA_GROUP_KEY, groupKey);
+                mExtras.putString(NotificationCompatExtras.EXTRA_GROUP_KEY, groupKey);
                 if (groupSummary) {
-                    mExtras.putBoolean(NotificationCompatJellybean.EXTRA_GROUP_SUMMARY, true);
+                    mExtras.putBoolean(NotificationCompatExtras.EXTRA_GROUP_SUMMARY, true);
                 } else {
-                    mExtras.putBoolean(NotificationCompatJellybean.EXTRA_USE_SIDE_CHANNEL, true);
+                    mExtras.putBoolean(NotificationManagerCompat.EXTRA_USE_SIDE_CHANNEL, true);
                 }
             }
             if (sortKey != null) {
-                mExtras.putString(NotificationCompatJellybean.EXTRA_SORT_KEY, sortKey);
+                mExtras.putString(NotificationCompatExtras.EXTRA_SORT_KEY, sortKey);
             }
             mContentView = contentView;
             mBigContentView = bigContentView;
@@ -117,7 +115,7 @@ class NotificationCompatKitKat {
             if (actionExtrasMap != null) {
                 // Add the action extras sparse array if any action was added with extras.
                 mExtras.putSparseParcelableArray(
-                        NotificationCompatJellybean.EXTRA_ACTION_EXTRAS, actionExtrasMap);
+                        NotificationCompatExtras.EXTRA_ACTION_EXTRAS, actionExtrasMap);
             }
             b.setExtras(mExtras);
             Notification notification = b.build();
@@ -131,41 +129,17 @@ class NotificationCompatKitKat {
         }
     }
 
-    public static Bundle getExtras(Notification notif) {
-        return notif.extras;
-    }
-
-    public static int getActionCount(Notification notif) {
-        return notif.actions != null ? notif.actions.length : 0;
-    }
-
     public static NotificationCompatBase.Action getAction(Notification notif,
             int actionIndex, NotificationCompatBase.Action.Factory factory,
             RemoteInputCompatBase.RemoteInput.Factory remoteInputFactory) {
         Notification.Action action = notif.actions[actionIndex];
         Bundle actionExtras = null;
         SparseArray<Bundle> actionExtrasMap = notif.extras.getSparseParcelableArray(
-                NotificationCompatJellybean.EXTRA_ACTION_EXTRAS);
+                NotificationCompatExtras.EXTRA_ACTION_EXTRAS);
         if (actionExtrasMap != null) {
             actionExtras = actionExtrasMap.get(actionIndex);
         }
         return NotificationCompatJellybean.readAction(factory, remoteInputFactory,
                 action.icon, action.title, action.actionIntent, actionExtras);
-    }
-
-    public static boolean getLocalOnly(Notification notif) {
-        return notif.extras.getBoolean(NotificationCompatJellybean.EXTRA_LOCAL_ONLY);
-    }
-
-    public static String getGroup(Notification notif) {
-        return notif.extras.getString(NotificationCompatJellybean.EXTRA_GROUP_KEY);
-    }
-
-    public static boolean isGroupSummary(Notification notif) {
-        return notif.extras.getBoolean(NotificationCompatJellybean.EXTRA_GROUP_SUMMARY);
-    }
-
-    public static String getSortKey(Notification notif) {
-        return notif.extras.getString(NotificationCompatJellybean.EXTRA_SORT_KEY);
     }
 }

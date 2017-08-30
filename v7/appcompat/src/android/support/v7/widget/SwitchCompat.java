@@ -17,7 +17,6 @@
 package android.support.v7.widget;
 
 import android.animation.ObjectAnimator;
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -32,7 +31,6 @@ import android.os.Build;
 import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
 import android.support.v4.graphics.drawable.DrawableCompat;
-import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.appcompat.R;
 import android.support.v7.content.res.AppCompatResources;
@@ -82,7 +80,6 @@ import android.widget.CompoundButton;
  * @attr ref android.support.v7.appcompat.R.styleable#SwitchCompat_track
  */
 @RequiresApi(14)
-@TargetApi(14)
 public class SwitchCompat extends CompoundButton {
     private static final int THUMB_ANIMATION_DURATION = 250;
 
@@ -171,7 +168,7 @@ public class SwitchCompat extends CompoundButton {
     /** Bottom bound for drawing the switch track and thumb. */
     private int mSwitchBottom;
 
-    private TextPaint mTextPaint;
+    private final TextPaint mTextPaint;
     private ColorStateList mTextColors;
     private Layout mOnLayout;
     private Layout mOffLayout;
@@ -389,9 +386,10 @@ public class SwitchCompat extends CompoundButton {
      * {@link #setSwitchTypeface(Typeface, int)} to get the appearance
      * that you actually want.
      */
-    public void setSwitchTypeface(Typeface tf) {
-        if (mTextPaint.getTypeface() != tf) {
-            mTextPaint.setTypeface(tf);
+    public void setSwitchTypeface(Typeface typeface) {
+        if ((mTextPaint.getTypeface() != null && !mTextPaint.getTypeface().equals(typeface))
+                || (mTextPaint.getTypeface() == null && typeface != null)) {
+            mTextPaint.setTypeface(typeface);
 
             requestLayout();
             invalidate();
@@ -856,7 +854,7 @@ public class SwitchCompat extends CompoundButton {
 
         final int measuredHeight = getMeasuredHeight();
         if (measuredHeight < switchHeight) {
-            setMeasuredDimension(ViewCompat.getMeasuredWidthAndState(this), switchHeight);
+            setMeasuredDimension(getMeasuredWidthAndState(), switchHeight);
         }
     }
 
@@ -904,7 +902,7 @@ public class SwitchCompat extends CompoundButton {
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         mVelocityTracker.addMovement(ev);
-        final int action = MotionEventCompat.getActionMasked(ev);
+        final int action = ev.getActionMasked();
         switch (action) {
             case MotionEvent.ACTION_DOWN: {
                 final float x = ev.getX();

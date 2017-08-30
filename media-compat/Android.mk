@@ -28,8 +28,6 @@ LOCAL_MODULE := android-support-media-compat
 LOCAL_SDK_VERSION := $(SUPPORT_CURRENT_SDK_VERSION)
 LOCAL_AIDL_INCLUDES := $(LOCAL_PATH)/java
 LOCAL_SRC_FILES := \
-    $(call all-java-files-under,ics) \
-    $(call all-java-files-under,jellybean-mr2) \
     $(call all-java-files-under,kitkat) \
     $(call all-java-files-under,api21) \
     $(call all-java-files-under,api22) \
@@ -38,7 +36,6 @@ LOCAL_SRC_FILES := \
     $(call all-java-files-under,java) \
     $(call all-Iaidl-files-under,java)
 LOCAL_RESOURCE_DIR := $(LOCAL_PATH)/res
-LOCAL_MANIFEST_FILE := AndroidManifest-make.xml
 LOCAL_SHARED_ANDROID_LIBRARIES := \
     android-support-compat \
     android-support-annotations

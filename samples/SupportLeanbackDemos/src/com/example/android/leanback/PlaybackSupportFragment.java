@@ -59,6 +59,7 @@ public class PlaybackSupportFragment
 
     private PlaybackControlGlue mGlue;
 
+    @Override
     public SparseArrayObjectAdapter getAdapter() {
         return (SparseArrayObjectAdapter) super.getAdapter();
     }
@@ -77,11 +78,11 @@ public class PlaybackSupportFragment
         mGlue = new PlaybackControlGlue(context) {
             @Override
             public int getUpdatePeriod() {
-                int totalTime = getControlsRow().getTotalTime();
+                long totalTime = getControlsRow().getDuration();
                 if (getView() == null || getView().getWidth() == 0 || totalTime <= 0) {
                     return 1000;
                 }
-                return Math.max(16, totalTime / getView().getWidth());
+                return 16;
             }
 
             @Override
@@ -137,7 +138,7 @@ public class PlaybackSupportFragment
             setFadingEnabled(true);
             fadeOut();
         } else {
-            setFadingEnabled(mGlue.isMediaPlaying());
+            setFadingEnabled(mGlue.isPlaying());
         }
     }
 }

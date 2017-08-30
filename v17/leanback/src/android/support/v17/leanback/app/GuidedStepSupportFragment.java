@@ -38,6 +38,7 @@ import android.support.v17.leanback.widget.GuidedAction;
 import android.support.v17.leanback.widget.GuidedActionAdapter;
 import android.support.v17.leanback.widget.GuidedActionAdapterGroup;
 import android.support.v17.leanback.widget.GuidedActionsStylist;
+import android.support.v17.leanback.widget.NonOverlappingLinearLayout;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -236,7 +237,7 @@ public class GuidedStepSupportFragment extends Fragment implements GuidedActionA
     @RestrictTo(LIBRARY_GROUP)
     public static final int SLIDE_FROM_BOTTOM = 1;
 
-    private static final String TAG = "GuidedStepSupportFragment";
+    private static final String TAG = "GuidedStepF";
     private static final boolean DEBUG = false;
 
     /**
@@ -1048,6 +1049,7 @@ public class GuidedStepSupportFragment extends Fragment implements GuidedActionA
 
         ViewGroup guidanceContainer = (ViewGroup) root.findViewById(R.id.content_fragment);
         ViewGroup actionContainer = (ViewGroup) root.findViewById(R.id.action_fragment);
+        ((NonOverlappingLinearLayout) actionContainer).setFocusableViewAvailableFixEnabled(true);
 
         Guidance guidance = onCreateGuidance(savedInstanceState);
         View guidanceView = mGuidanceStylist.onCreateView(inflater, guidanceContainer, guidance);
@@ -1327,6 +1329,15 @@ public class GuidedStepSupportFragment extends Fragment implements GuidedActionA
       this.entranceTransitionType = transitionType;
     }
 
+    /**
+     * Opens the provided action in edit mode and raises ime. This can be
+     * used to programmatically skip the extra click required to go into edit mode. This method
+     * can be invoked in {@link #onCreateView(LayoutInflater, ViewGroup, Bundle)}.
+     */
+    public void openInEditMode(GuidedAction action) {
+        mActionsStylist.openInEditMode(action);
+    }
+
     private void resolveTheme() {
         // Look up the guidedStepTheme in the currently specified theme.  If it exists,
         // replace the theme with its value.
@@ -1389,5 +1400,4 @@ public class GuidedStepSupportFragment extends Fragment implements GuidedActionA
         set.playTogether(animators);
         set.start();
     }
-
 }

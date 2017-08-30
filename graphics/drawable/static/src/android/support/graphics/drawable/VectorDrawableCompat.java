@@ -40,8 +40,11 @@ import android.os.Build;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
 import android.support.annotation.RestrictTo;
 import android.support.v4.content.res.ResourcesCompat;
+import android.support.v4.content.res.TypedArrayUtils;
+import android.support.v4.graphics.PathParser;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v4.util.ArrayMap;
 import android.util.AttributeSet;
@@ -262,7 +265,7 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
 
     @Override
     public ConstantState getConstantState() {
-        if (mDelegateDrawable != null) {
+        if (mDelegateDrawable != null && Build.VERSION.SDK_INT >= 24) {
             // Such that the configuration can be refreshed.
             return new VectorDrawableDelegateState(mDelegateDrawable.getConstantState());
         }
@@ -390,7 +393,6 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
         return new PorterDuffColorFilter(color, tintMode);
     }
 
-    @SuppressLint("NewApi")
     @Override
     public void setTint(int tint) {
         if (mDelegateDrawable != null) {
@@ -517,11 +519,11 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
      */
     @RestrictTo(LIBRARY_GROUP)
     public float getPixelSize() {
-        if (mVectorState == null && mVectorState.mVPathRenderer == null ||
-                mVectorState.mVPathRenderer.mBaseWidth == 0 ||
-                mVectorState.mVPathRenderer.mBaseHeight == 0 ||
-                mVectorState.mVPathRenderer.mViewportHeight == 0 ||
-                mVectorState.mVPathRenderer.mViewportWidth == 0) {
+        if (mVectorState == null || mVectorState.mVPathRenderer == null
+                || mVectorState.mVPathRenderer.mBaseWidth == 0
+                || mVectorState.mVPathRenderer.mBaseHeight == 0
+                || mVectorState.mVPathRenderer.mViewportHeight == 0
+                || mVectorState.mVPathRenderer.mViewportWidth == 0) {
             return 1; // fall back to 1:1 pixel mapping.
         }
         float intrinsicWidth = mVectorState.mVPathRenderer.mBaseWidth;
@@ -541,7 +543,6 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
      * @param theme the theme of this vector drawable, it can be null.
      * @return a new VectorDrawableCompat or null if parsing error is found.
      */
-    @SuppressLint("NewApi")
     @Nullable
     public static VectorDrawableCompat create(@NonNull Resources res, @DrawableRes int resId,
                                               @Nullable Theme theme) {
@@ -554,7 +555,7 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
         }
 
         try {
-            final XmlPullParser parser = res.getXml(resId);
+            @SuppressLint("ResourceType") final XmlPullParser parser = res.getXml(resId);
             final AttributeSet attrs = Xml.asAttributeSet(parser);
             int type;
             while ((type = parser.next()) != XmlPullParser.START_TAG &&
@@ -579,7 +580,6 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
      * document, tries to create a Drawable from that tag. Returns {@code null}
      * if the tag is not a valid drawable.
      */
-    @SuppressLint("NewApi")
     public static VectorDrawableCompat createFromXmlInner(Resources r, XmlPullParser parser,
             AttributeSet attrs, Theme theme) throws XmlPullParserException, IOException {
         final VectorDrawableCompat drawable = new VectorDrawableCompat();
@@ -594,7 +594,6 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
         return color;
     }
 
-    @SuppressLint("NewApi")
     @Override
     public void inflate(Resources res, XmlPullParser parser, AttributeSet attrs)
             throws XmlPullParserException, IOException {
@@ -818,12 +817,12 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
     }
 
     // We don't support RTL auto mirroring since the getLayoutDirection() is for API 17+.
-    @SuppressLint("NewApi")
     private boolean needMirroring() {
-        if (Build.VERSION.SDK_INT < 17) {
-            return false;
+        if (Build.VERSION.SDK_INT >= 17) {
+            return isAutoMirrored()
+                    && DrawableCompat.getLayoutDirection(this) == LayoutDirection.RTL;
         } else {
-            return isAutoMirrored() && getLayoutDirection() == LayoutDirection.RTL;
+            return false;
         }
     }
 
@@ -883,6 +882,7 @@ public class VectorDrawableCompat extends VectorDrawableCommon {
      * Instead of creating a VectorDrawable, create a VectorDrawableCompat instance which contains
      * a delegated VectorDrawable instance.
      */
+    @RequiresApi(24)
     private static class VectorDrawableDelegateState extends ConstantState {
         private final ConstantState mDelegateState;
 

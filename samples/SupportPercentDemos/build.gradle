@@ -1,14 +1,15 @@
 apply plugin: 'com.android.application'
 
 dependencies {
-    compile project(':support-percent')
+    implementation project(':support-percent')
 }
 
 android {
     compileSdkVersion project.ext.currentSdk
 
     defaultConfig {
-        minSdkVersion 11
+        minSdkVersion 14
+        targetSdkVersion project.ext.currentSdk
     }
 
     sourceSets {
@@ -19,7 +20,15 @@ android {
     }
 
     lintOptions {
-        abortOnError false
+        abortOnError true
+        check 'NewApi'
+    }
+
+    signingConfigs {
+        debug {
+            // Use a local debug keystore to avoid build server issues.
+            storeFile project.rootProject.init.debugKeystore
+        }
     }
 
     compileOptions {

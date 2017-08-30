@@ -18,9 +18,7 @@ package android.support.v7.view;
 
 import static android.support.annotation.RestrictTo.Scope.LIBRARY_GROUP;
 
-import android.annotation.TargetApi;
 import android.content.Context;
-import android.os.Build;
 import android.support.annotation.RestrictTo;
 import android.support.v4.internal.view.SupportMenu;
 import android.support.v4.internal.view.SupportMenuItem;
@@ -40,7 +38,6 @@ import java.util.ArrayList;
  * @hide
  */
 @RestrictTo(LIBRARY_GROUP)
-@TargetApi(Build.VERSION_CODES.HONEYCOMB)
 public class SupportActionModeWrapper extends ActionMode {
 
     final Context mContext;

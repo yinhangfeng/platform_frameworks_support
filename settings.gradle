@@ -1,5 +1,5 @@
 include ':support-recyclerview-v7'
 project(':support-recyclerview-v7').projectDir = new File(rootDir, 'v7/recyclerview')
 
-include ':support-v7-demos'
-project(':support-v7-demos').projectDir = new File(rootDir, 'samples/Support7Demos')
+//include ':support-v7-demos'
+//project(':support-v7-demos').projectDir = new File(rootDir, 'samples/Support7Demos')

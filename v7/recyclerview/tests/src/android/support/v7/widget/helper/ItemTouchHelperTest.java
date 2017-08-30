@@ -27,11 +27,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.os.Build;
-import android.support.test.filters.MediumTest;
+import android.support.test.filters.LargeTest;
 import android.support.test.filters.SdkSuppress;
 import android.support.test.filters.Suppress;
 import android.support.test.runner.AndroidJUnit4;
-import android.support.v7.util.PollingCheck;
+import android.support.testutils.PollingCheck;
 import android.support.v7.util.TouchUtils;
 import android.support.v7.widget.BaseRecyclerViewInstrumentationTest;
 import android.support.v7.widget.RecyclerView;
@@ -44,7 +44,7 @@ import org.junit.runner.RunWith;
 import java.util.ArrayList;
 import java.util.List;
 
-@MediumTest
+@LargeTest
 @RunWith(AndroidJUnit4.class)
 public class ItemTouchHelperTest extends BaseRecyclerViewInstrumentationTest {
 

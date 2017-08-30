@@ -16,14 +16,18 @@
 
 package android.support.graphics.drawable;
 
+import static android.support.annotation.RestrictTo.Scope.LIBRARY_GROUP;
+
 import android.animation.TypeEvaluator;
 import android.animation.ValueAnimator;
+import android.support.annotation.RestrictTo;
 
 /**
  * This evaluator can be used to perform type interpolation between integer
  * values that represent ARGB colors.
  * @hide
  */
+@RestrictTo(LIBRARY_GROUP)
 public class ArgbEvaluator implements TypeEvaluator {
     private static final ArgbEvaluator sInstance = new ArgbEvaluator();
 
@@ -33,7 +37,6 @@ public class ArgbEvaluator implements TypeEvaluator {
      * be used in multiple <code>Animator</code>s because it holds no state.
      *
      * @return An instance of <code>ArgbEvalutor</code>.
-     * @hide
      */
     public static ArgbEvaluator getInstance() {
         return sInstance;
@@ -55,6 +58,7 @@ public class ArgbEvaluator implements TypeEvaluator {
      * color channels and interpolating each one separately, recombining the
      * resulting values in the same way.
      */
+    @Override
     public Object evaluate(float fraction, Object startValue, Object endValue) {
         int startInt = (Integer) startValue;
         float startA = ((startInt >> 24) & 0xff) / 255.0f;

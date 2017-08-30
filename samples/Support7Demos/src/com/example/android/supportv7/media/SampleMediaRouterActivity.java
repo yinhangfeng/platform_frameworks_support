@@ -24,10 +24,12 @@ import android.content.Intent;
 import android.media.AudioManager;
 import android.media.AudioManager.OnAudioFocusChangeListener;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.view.MenuItemCompat;
@@ -132,7 +134,9 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
             Log.d(TAG, "onRouteSelected: route=" + route);
 
             mPlayer = Player.create(SampleMediaRouterActivity.this, route, mMediaSession);
-            mPlayer.updatePresentation();
+            if (isPresentationApiSupported()) {
+                mPlayer.updatePresentation();
+            }
             mSessionManager.setPlayer(mPlayer);
             mSessionManager.unsuspend();
 
@@ -150,7 +154,9 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
                         0 : (SystemClock.elapsedRealtime() - item.getTimestamp()));
                 mSessionManager.suspend(pos);
             }
-            mPlayer.updatePresentation();
+            if (isPresentationApiSupported()) {
+                mPlayer.updatePresentation();
+            }
             mPlayer.release();
         }
 
@@ -163,7 +169,9 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
         public void onRoutePresentationDisplayChanged(
                 MediaRouter router, RouteInfo route) {
             Log.d(TAG, "onRoutePresentationDisplayChanged: route=" + route);
-            mPlayer.updatePresentation();
+            if (isPresentationApiSupported()) {
+                mPlayer.updatePresentation();
+            }
         }
 
         @Override
@@ -179,6 +187,10 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
         @Override
         public void onProviderChanged(MediaRouter router, ProviderInfo provider) {
             Log.d(TAG, "onRouteProviderChanged: provider=" + provider);
+        }
+
+        private boolean isPresentationApiSupported() {
+            return Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1;
         }
     };
 
@@ -205,6 +217,13 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
         // Be sure to call the super class.
         super.onCreate(savedInstanceState);
 
+        // Need overlay permission for emulating remote display.
+        if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivityForResult(intent, 0);
+        }
+
         // Get the media router service.
         mMediaRouter = MediaRouter.getInstance(this);
 
@@ -223,15 +242,13 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
         DiscoveryFragment fragment = (DiscoveryFragment) fm.findFragmentByTag(
                 DISCOVERY_FRAGMENT_TAG);
         if (fragment == null) {
-            fragment = new DiscoveryFragment(mMediaRouterCB);
-            fragment.setRouteSelector(mSelector);
+            fragment = new DiscoveryFragment();
             fm.beginTransaction()
                     .add(fragment, DISCOVERY_FRAGMENT_TAG)
                     .commit();
-        } else {
-            fragment.setCallback(mMediaRouterCB);
-            fragment.setRouteSelector(mSelector);
         }
+        fragment.setCallback(mMediaRouterCB);
+        fragment.setRouteSelector(mSelector);
 
         // Populate an array adapter with streaming media items.
         String[] mediaNames = getResources().getStringArray(R.array.media_names);
@@ -289,7 +306,7 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
             }
         });
 
-        mLibraryView = (ListView) findViewById(R.id.media);
+        mLibraryView = findViewById(R.id.media);
         mLibraryView.setAdapter(mLibraryItems);
         mLibraryView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         mLibraryView.setOnItemClickListener(new OnItemClickListener() {
@@ -299,7 +316,7 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
             }
         });
 
-        mPlayListView = (ListView) findViewById(R.id.playlist);
+        mPlayListView = findViewById(R.id.playlist);
         mPlayListView.setAdapter(mPlayListItems);
         mPlayListView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         mPlayListView.setOnItemClickListener(new OnItemClickListener() {
@@ -309,9 +326,9 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
             }
         });
 
-        mInfoTextView = (TextView) findViewById(R.id.info);
+        mInfoTextView = findViewById(R.id.info);
 
-        mUseDefaultControlCheckBox = (CheckBox) findViewById(R.id.custom_control_view_checkbox);
+        mUseDefaultControlCheckBox = findViewById(R.id.custom_control_view_checkbox);
         if (ENABLE_DEFAULT_CONTROL_CHECK_BOX) {
             mUseDefaultControlCheckBox.setVisibility(View.VISIBLE);
         }
@@ -335,7 +352,7 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
             }
         });
 
-        mSeekBar = (SeekBar) findViewById(R.id.seekbar);
+        mSeekBar = findViewById(R.id.seekbar);
         mSeekBar.setOnSeekBarChangeListener(new OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -627,14 +644,6 @@ public class SampleMediaRouterActivity extends AppCompatActivity {
     public static final class DiscoveryFragment extends MediaRouteDiscoveryFragment {
         private static final String TAG = "DiscoveryFragment";
         private Callback mCallback;
-
-        public DiscoveryFragment() {
-            mCallback = null;
-        }
-
-        public DiscoveryFragment(Callback cb) {
-            mCallback = cb;
-        }
 
         public void setCallback(Callback cb) {
             mCallback = cb;

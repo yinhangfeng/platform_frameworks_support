@@ -23,8 +23,6 @@ import static android.support.v7.widget.ThemeUtils.getDisabledThemeAttrColor;
 import static android.support.v7.widget.ThemeUtils.getThemeAttrColor;
 import static android.support.v7.widget.ThemeUtils.getThemeAttrColorStateList;
 
-import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -533,7 +531,7 @@ public final class AppCompatDrawableManager {
             } else if (resId == R.drawable.abc_switch_track_mtrl_alpha) {
                 tint = getColorStateList(context, R.color.abc_tint_switch_track);
             } else if (resId == R.drawable.abc_switch_thumb_material) {
-                tint = getColorStateList(context, R.color.abc_tint_switch_thumb);
+                tint = createSwitchThumbColorStateList(context);
             } else if (resId == R.drawable.abc_btn_default_mtrl_shape) {
                 tint = createDefaultButtonColorStateList(context);
             } else if (resId == R.drawable.abc_btn_borderless_material) {
@@ -622,6 +620,52 @@ public final class AppCompatDrawableManager {
         states[i] = ThemeUtils.EMPTY_STATE_SET;
         colors[i] = baseColor;
         i++;
+
+        return new ColorStateList(states, colors);
+    }
+
+    private ColorStateList createSwitchThumbColorStateList(Context context) {
+        final int[][] states = new int[3][];
+        final int[] colors = new int[3];
+        int i = 0;
+
+        final ColorStateList thumbColor = getThemeAttrColorStateList(context,
+                R.attr.colorSwitchThumbNormal);
+
+        if (thumbColor != null && thumbColor.isStateful()) {
+            // If colorSwitchThumbNormal is a valid ColorStateList, extract the default and
+            // disabled colors from it
+
+            // Disabled state
+            states[i] = ThemeUtils.DISABLED_STATE_SET;
+            colors[i] = thumbColor.getColorForState(states[i], 0);
+            i++;
+
+            states[i] = ThemeUtils.CHECKED_STATE_SET;
+            colors[i] = getThemeAttrColor(context, R.attr.colorControlActivated);
+            i++;
+
+            // Default enabled state
+            states[i] = ThemeUtils.EMPTY_STATE_SET;
+            colors[i] = thumbColor.getDefaultColor();
+            i++;
+        } else {
+            // Else we'll use an approximation using the default disabled alpha
+
+            // Disabled state
+            states[i] = ThemeUtils.DISABLED_STATE_SET;
+            colors[i] = getDisabledThemeAttrColor(context, R.attr.colorSwitchThumbNormal);
+            i++;
+
+            states[i] = ThemeUtils.CHECKED_STATE_SET;
+            colors[i] = getThemeAttrColor(context, R.attr.colorControlActivated);
+            i++;
+
+            // Default enabled state
+            states[i] = ThemeUtils.EMPTY_STATE_SET;
+            colors[i] = getThemeAttrColor(context, R.attr.colorSwitchThumbNormal);
+            i++;
+        }
 
         return new ColorStateList(states, colors);
     }
@@ -725,7 +769,6 @@ public final class AppCompatDrawableManager {
         VdcInflateDelegate() {
         }
 
-        @SuppressLint("NewApi")
         @Override
         public Drawable createFromXmlInner(@NonNull Context context, @NonNull XmlPullParser parser,
                 @NonNull AttributeSet attrs, @Nullable Resources.Theme theme) {
@@ -740,12 +783,10 @@ public final class AppCompatDrawableManager {
     }
 
     @RequiresApi(11)
-    @TargetApi(11)
     private static class AvdcInflateDelegate implements InflateDelegate {
         AvdcInflateDelegate() {
         }
 
-        @SuppressLint("NewApi")
         @Override
         public Drawable createFromXmlInner(@NonNull Context context, @NonNull XmlPullParser parser,
                 @NonNull AttributeSet attrs, @Nullable Resources.Theme theme) {

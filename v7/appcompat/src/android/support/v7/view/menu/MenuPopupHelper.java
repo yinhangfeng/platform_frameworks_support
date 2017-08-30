@@ -226,10 +226,8 @@ public class MenuPopupHelper implements MenuHelper {
 
         if (Build.VERSION.SDK_INT >= 17) {
             display.getRealSize(displaySize);
-        } else if (Build.VERSION.SDK_INT >= 13) {
-            display.getSize(displaySize);
         } else {
-            displaySize.set(display.getWidth(), display.getHeight());
+            display.getSize(displaySize);
         }
 
         final int smallestWidth = Math.min(displaySize.x, displaySize.y);
@@ -270,7 +268,7 @@ public class MenuPopupHelper implements MenuHelper {
             final int hgrav = GravityCompat.getAbsoluteGravity(mDropDownGravity,
                     ViewCompat.getLayoutDirection(mAnchorView)) & Gravity.HORIZONTAL_GRAVITY_MASK;
             if (hgrav == Gravity.RIGHT) {
-                xOffset -= mAnchorView.getWidth();
+                xOffset += mAnchorView.getWidth();
             }
 
             popup.setHorizontalOffset(xOffset);

@@ -49,6 +49,7 @@ public class LinkifyCompatTest {
             "(test:)?[a-zA-Z0-9]+(\\.pattern)?");
 
     private MatchFilter mMatchFilterStartWithDot = new MatchFilter() {
+        @Override
         public final boolean acceptMatch(final CharSequence s, final int start, final int end) {
             if (start == 0) {
                 return true;
@@ -63,6 +64,7 @@ public class LinkifyCompatTest {
     };
 
     private TransformFilter mTransformFilterUpperChar = new TransformFilter() {
+        @Override
         public final String transformUrl(final Matcher match, String url) {
             StringBuilder buffer = new StringBuilder();
             String matchingRegion = match.group();
@@ -243,10 +245,19 @@ public class LinkifyCompatTest {
             assertTrue(LinkifyCompat.addLinks(spannable, Linkify.ALL));
             URLSpan[] spans = spannable.getSpans(0, spannable.length(), URLSpan.class);
             assertEquals(3, spans.length);
-            assertEquals("tel:8005551233", spans[0].getURL());
-            assertEquals("mailto:800-555-1211@gmail.com", spans[1].getURL());
-            assertEquals("http://800-555-1222.com", spans[2].getURL());
+            assertTrue(containsUrl(spans, "tel:8005551233"));
+            assertTrue(containsUrl(spans, "mailto:800-555-1211@gmail.com"));
+            assertTrue(containsUrl(spans, "http://800-555-1222.com"));
         }
+    }
+
+    private boolean containsUrl(URLSpan[] spans, String expectedValue) {
+        for (URLSpan span : spans) {
+            if (span.getURL().equals(expectedValue)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Test

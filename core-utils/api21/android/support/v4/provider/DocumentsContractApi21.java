@@ -16,7 +16,6 @@
 
 package android.support.v4.provider;
 
-import android.annotation.TargetApi;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
@@ -28,14 +27,17 @@ import android.util.Log;
 import java.util.ArrayList;
 
 @RequiresApi(21)
-@TargetApi(21)
 class DocumentsContractApi21 {
     private static final String TAG = "DocumentFile";
 
     public static Uri createFile(Context context, Uri self, String mimeType,
             String displayName) {
-        return DocumentsContract.createDocument(context.getContentResolver(), self, mimeType,
-                displayName);
+        try {
+            return DocumentsContract.createDocument(context.getContentResolver(), self, mimeType,
+                    displayName);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public static Uri createDirectory(Context context, Uri self, String displayName) {
@@ -73,7 +75,12 @@ class DocumentsContractApi21 {
     }
 
     public static Uri renameTo(Context context, Uri self, String displayName) {
-        return DocumentsContract.renameDocument(context.getContentResolver(), self, displayName);
+        try {
+            return DocumentsContract.renameDocument(context.getContentResolver(), self,
+                    displayName);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static void closeQuietly(AutoCloseable closeable) {
