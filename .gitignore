@@ -19,5 +19,4 @@ buildSrc/build
 lifecycle/common/build
 jacoco.exec
 
-buildSrc
 build
