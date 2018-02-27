@@ -1,16 +1,17 @@
-apply plugin: android.support.SupportLibraryPlugin
-archivesBaseName = 'mediarouter-v7'
+import android.support.LibraryGroups
+import android.support.LibraryVersions
+
+plugins {
+    id("SupportAndroidLibraryPlugin")
+}
 
 dependencies {
-    api project(":support-appcompat-v7")
-    api project(":support-palette-v7")
+    api project(":support-media-compat")
+    api project(":appcompat-v7")
+    api project(":palette-v7")
 
-    androidTestImplementation (libs.test_runner) {
-        exclude module: 'support-annotations'
-    }
-    androidTestImplementation (libs.espresso_core) {
-        exclude module: 'support-annotations'
-    }
+    androidTestImplementation libs.test_runner,   { exclude module: 'support-annotations' }
+    androidTestImplementation libs.espresso_core, { exclude module: 'support-annotations' }
     androidTestImplementation libs.test_rules
 }
 
@@ -32,7 +33,11 @@ android {
 }
 
 supportLibrary {
-    name 'Android MediaRouter Support Library'
-    inceptionYear '2013'
-    description 'Android MediaRouter Support Library'
+    name = "Android MediaRouter Support Library"
+    publish = true
+    mavenVersion = LibraryVersions.SUPPORT_LIBRARY
+    mavenGroup = LibraryGroups.SUPPORT
+    inceptionYear = "2013"
+    description = "Android MediaRouter Support Library"
+    legacySourceLocation = true
 }

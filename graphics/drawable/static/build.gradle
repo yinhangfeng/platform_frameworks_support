@@ -1,13 +1,15 @@
-apply plugin: android.support.SupportLibraryPlugin
-archivesBaseName = 'support-vector-drawable'
+import android.support.LibraryGroups
+import android.support.LibraryVersions
+
+plugins {
+    id("SupportAndroidLibraryPlugin")
+}
 
 dependencies {
     api project(':support-annotations')
     api project(':support-compat')
 
-    androidTestImplementation (libs.test_runner) {
-        exclude module: 'support-annotations'
-    }
+    androidTestImplementation libs.test_runner, { exclude module: 'support-annotations' }
 }
 
 android {
@@ -17,17 +19,17 @@ android {
         generatedDensities = []
     }
 
-    sourceSets {
-        main.java.srcDir 'src'
-    }
-
     aaptOptions {
         additionalParameters "--no-version-vectors"
     }
 }
 
 supportLibrary {
-    name 'Android Support VectorDrawable'
-    inceptionYear '2015'
-    description 'Android Support VectorDrawable'
+    name = "Android Support VectorDrawable"
+    publish = true
+    mavenVersion = LibraryVersions.SUPPORT_LIBRARY
+    mavenGroup = LibraryGroups.SUPPORT
+    inceptionYear = "2015"
+    description = "Android Support VectorDrawable"
+    legacySourceLocation = true
 }

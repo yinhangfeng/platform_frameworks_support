@@ -1,19 +1,21 @@
-apply plugin: android.support.SupportLibraryPlugin
+import android.support.LibraryGroups
+import android.support.LibraryVersions
 
-archivesBaseName = 'transition'
+plugins {
+    id("SupportAndroidLibraryPlugin")
+}
 
 dependencies {
     api project(':support-annotations')
-    api project(':support-v4')
+    api project(':support-compat')
+    compileOnly project(':support-fragment')
 
-    androidTestImplementation (libs.test_runner) {
-        exclude module: 'support-annotations'
-    }
-    androidTestImplementation (libs.espresso_core) {
-        exclude module: 'support-annotations'
-    }
-    androidTestImplementation libs.mockito_core
-    androidTestImplementation libs.dexmaker_mockito
+    androidTestImplementation libs.test_runner,      { exclude module: 'support-annotations' }
+    androidTestImplementation libs.espresso_core,    { exclude module: 'support-annotations' }
+    androidTestImplementation libs.mockito_core,     { exclude group: 'net.bytebuddy' } // DexMaker has it"s own MockMaker
+    androidTestImplementation libs.dexmaker_mockito, { exclude group: 'net.bytebuddy' } // DexMaker has it"s own MockMaker
+    androidTestImplementation project(':support-v4')
+    androidTestImplementation project(':appcompat-v7')
 }
 
 android {
@@ -37,13 +39,21 @@ android {
         ]
     }
 
+    buildTypes.all {
+        consumerProguardFiles 'proguard-rules.pro'
+    }
+
     aaptOptions {
         additionalParameters "--no-version-transitions"
     }
 }
 
 supportLibrary {
-    name 'Android Transition Support Library'
-    inceptionYear '2016'
-    description 'Android Transition Support Library'
+    name = "Android Transition Support Library"
+    publish = true
+    mavenVersion = LibraryVersions.SUPPORT_LIBRARY
+    mavenGroup = LibraryGroups.SUPPORT
+    inceptionYear = "2016"
+    description = "Android Transition Support Library"
+    legacySourceLocation = true
 }

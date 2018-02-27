@@ -1,7 +1,9 @@
+/unbundled-build
 .classpath
 .gradle
-.idea/
-!.idea/codeStyleSettings.xml
+**/.idea/**
+!**/.idea/codeStyleSettings.xml
+!**/.idea/copyright
 !.idea/copyright/AndroidCopyright.xml
 !.idea/copyright/profiles_settings.xml
 !.idea/vcs.xml
@@ -14,6 +16,8 @@ local.properties
 *.iml
 **/out
 buildSrc/build
-build
 lifecycle/common/build
 jacoco.exec
+
+buildSrc
+build

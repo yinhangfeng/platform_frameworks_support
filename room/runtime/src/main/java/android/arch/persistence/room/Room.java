@@ -43,11 +43,12 @@ public class Room {
      * @return A {@code RoomDatabaseBuilder<T>} which you can use to create the database.
      */
     @SuppressWarnings("WeakerAccess")
+    @NonNull
     public static <T extends RoomDatabase> RoomDatabase.Builder<T> databaseBuilder(
             @NonNull Context context, @NonNull Class<T> klass, @NonNull String name) {
         //noinspection ConstantConditions
         if (name == null || name.trim().length() == 0) {
-            throw new IllegalArgumentException("Cannot create a database with null or empty name."
+            throw new IllegalArgumentException("Cannot build a database with null or empty name."
                     + " If you are trying to create an in memory database, use Room"
                     + ".inMemoryDatabaseBuilder");
         }
@@ -65,11 +66,13 @@ public class Room {
      * @param <T>     The type of the database class.
      * @return A {@code RoomDatabaseBuilder<T>} which you can use to create the database.
      */
+    @NonNull
     public static <T extends RoomDatabase> RoomDatabase.Builder<T> inMemoryDatabaseBuilder(
             @NonNull Context context, @NonNull Class<T> klass) {
         return new RoomDatabase.Builder<>(context, klass, null);
     }
 
+    @SuppressWarnings({"TypeParameterUnusedInFormals", "ClassNewInstance"})
     @NonNull
     static <T, C> T getGeneratedImplementation(Class<C> klass, String suffix) {
         final String fullPackage = klass.getPackage().getName();

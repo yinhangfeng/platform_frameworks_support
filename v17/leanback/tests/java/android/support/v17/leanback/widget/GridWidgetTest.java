@@ -47,8 +47,10 @@ import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.RecyclerViewAccessibilityDelegate;
 import android.text.Selection;
 import android.text.Spannable;
+import android.util.DisplayMetrics;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
+import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -1385,6 +1387,68 @@ public class GridWidgetTest {
     }
 
     @Test
+    public void testScrollAndStuck() throws Throwable {
+        // see b/67370222 fastRelayout() may be stuck.
+        final int numItems = 19;
+        final int[] itemsLength = new int[numItems];
+        for (int i = 0; i < numItems; i++) {
+            itemsLength[i] = 288;
+        }
+        Intent intent = new Intent();
+        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
+                R.layout.horizontal_linear);
+        intent.putExtra(GridActivity.EXTRA_ITEMS, itemsLength);
+        initActivity(intent);
+        mOrientation = BaseGridView.HORIZONTAL;
+        mNumRows = 1;
+
+        // set left right padding to 112, space between items to be 16.
+        mActivityTestRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                ViewGroup.LayoutParams lp = mGridView.getLayoutParams();
+                lp.width = 1920;
+                mGridView.setLayoutParams(lp);
+                mGridView.setPadding(112, mGridView.getPaddingTop(), 112,
+                        mGridView.getPaddingBottom());
+                mGridView.setItemSpacing(16);
+            }
+        });
+        waitOneUiCycle();
+
+        int scrollPos = 0;
+        while (true) {
+            final View view = mGridView.getChildAt(mGridView.getChildCount() - 1);
+            final int pos = mGridView.getChildViewHolder(view).getAdapterPosition();
+            if (scrollPos != pos) {
+                scrollPos = pos;
+                mActivityTestRule.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        mGridView.smoothScrollToPosition(pos);
+                    }
+                });
+            }
+            // wait until we see 2nd from last:
+            if (pos >= 17) {
+                if (pos == 17) {
+                    // great we can test fastRelayout() bug.
+                    Thread.sleep(50);
+                    mActivityTestRule.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            view.requestLayout();
+                        }
+                    });
+                }
+                break;
+            }
+            Thread.sleep(16);
+        }
+        waitForScrollIdle();
+    }
+
+    @Test
     public void testSwapAfterScroll() throws Throwable {
         Intent intent = new Intent();
         intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
@@ -1825,13 +1889,16 @@ public class GridWidgetTest {
                 mGridView.getLayoutManager().findViewByPosition(focusToIndex).getLeft());
     }
 
-    @Test
-    public void testScrollAndRemove() throws Throwable {
+    void testScrollAndRemove(int[] itemsLength, int numItems) throws Throwable {
 
         Intent intent = new Intent();
         intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
                 R.layout.horizontal_linear);
-        intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, 50);
+        if (itemsLength != null) {
+            intent.putExtra(GridActivity.EXTRA_ITEMS, itemsLength);
+        } else {
+            intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, numItems);
+        }
         initActivity(intent);
         mOrientation = BaseGridView.HORIZONTAL;
         mNumRows = 1;
@@ -1863,7 +1930,39 @@ public class GridWidgetTest {
         });
         waitForScrollIdle();
         assertEquals(leftEdge,
-                mGridView.getLayoutManager().findViewByPosition(focusToIndex).getLeft());
+                mGridView.getLayoutManager().findViewByPosition(focusToIndex).getLeft(), DELTA);
+    }
+
+    @Test
+    public void testScrollAndRemove() throws Throwable {
+        // test random lengths for 50 items
+        testScrollAndRemove(null, 50);
+    }
+
+    /**
+     * This test verifies if scroll limits are ignored when onLayoutChildren compensate remaining
+     * scroll distance. b/64931938
+     * In the test, second child is long, other children are short.
+     * Test scrolls to the long child, and when scrolling, remove the long child. We made it long
+     * to have enough remaining scroll distance when the layout pass kicks in.
+     * The onLayoutChildren() would compensate the remaining scroll distance, moving all items
+     * toward right, which will make the first item's left edge bigger than left padding,
+     * which would violate the "scroll limit of left" in a regular scroll case, but
+     * in layout pass, we still honor that scroll request, ignoring the scroll limit.
+     */
+    @Test
+    public void testScrollAndRemoveSample1() throws Throwable {
+        DisplayMetrics dm = InstrumentationRegistry.getInstrumentation().getTargetContext()
+                .getResources().getDisplayMetrics();
+        // screen width for long item and 4DP for other items
+        int longItemLength = dm.widthPixels;
+        int shortItemLength = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4, dm);
+        int[] items = new int[1000];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = shortItemLength;
+        }
+        items[1] = longItemLength;
+        testScrollAndRemove(items, 0);
     }
 
     @Test
@@ -3899,6 +3998,102 @@ public class GridWidgetTest {
     }
 
     @Test
+    public void testUpdateHeightScrollHorizontal() throws Throwable {
+        Intent intent = new Intent();
+        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
+                R.layout.horizontal_linear);
+        intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, 30);
+        intent.putExtra(GridActivity.EXTRA_STAGGERED, false);
+        intent.putExtra(GridActivity.EXTRA_REQUEST_LAYOUT_ONFOCUS, true);
+        intent.putExtra(GridActivity.EXTRA_UPDATE_SIZE, false);
+        intent.putExtra(GridActivity.EXTRA_UPDATE_SIZE_SECONDARY, true);
+        initActivity(intent);
+        mOrientation = BaseGridView.HORIZONTAL;
+        mNumRows = 1;
+
+        final int childTop = mGridView.getChildAt(0).getTop();
+        // scroll to end, all children's top should not change.
+        scrollToEnd(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < mGridView.getChildCount(); i++) {
+                    assertEquals(childTop, mGridView.getChildAt(i).getTop());
+                }
+            }
+        });
+        // sanity check last child has focus with a larger height.
+        assertTrue(mGridView.getChildAt(0).getHeight()
+                < mGridView.getChildAt(mGridView.getChildCount() - 1).getHeight());
+    }
+
+    @Test
+    public void testUpdateWidthScrollHorizontal() throws Throwable {
+        Intent intent = new Intent();
+        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
+                R.layout.horizontal_linear);
+        intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, 30);
+        intent.putExtra(GridActivity.EXTRA_STAGGERED, false);
+        intent.putExtra(GridActivity.EXTRA_REQUEST_LAYOUT_ONFOCUS, true);
+        intent.putExtra(GridActivity.EXTRA_UPDATE_SIZE, true);
+        intent.putExtra(GridActivity.EXTRA_UPDATE_SIZE_SECONDARY, false);
+        initActivity(intent);
+        mOrientation = BaseGridView.HORIZONTAL;
+        mNumRows = 1;
+
+        final int childTop = mGridView.getChildAt(0).getTop();
+        // scroll to end, all children's top should not change.
+        scrollToEnd(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < mGridView.getChildCount(); i++) {
+                    assertEquals(childTop, mGridView.getChildAt(i).getTop());
+                }
+            }
+        });
+        // sanity check last child has focus with a larger width.
+        assertTrue(mGridView.getChildAt(0).getWidth()
+                < mGridView.getChildAt(mGridView.getChildCount() - 1).getWidth());
+        if (mGridView.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL) {
+            assertEquals(mGridView.getPaddingLeft(),
+                    mGridView.getChildAt(mGridView.getChildCount() - 1).getLeft());
+        } else {
+            assertEquals(mGridView.getWidth() - mGridView.getPaddingRight(),
+                    mGridView.getChildAt(mGridView.getChildCount() - 1).getRight());
+        }
+    }
+
+    @Test
+    public void testUpdateWidthScrollHorizontalRtl() throws Throwable {
+        Intent intent = new Intent();
+        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
+                R.layout.horizontal_linear_rtl);
+        intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, 30);
+        intent.putExtra(GridActivity.EXTRA_STAGGERED, false);
+        intent.putExtra(GridActivity.EXTRA_REQUEST_LAYOUT_ONFOCUS, true);
+        intent.putExtra(GridActivity.EXTRA_UPDATE_SIZE, true);
+        intent.putExtra(GridActivity.EXTRA_UPDATE_SIZE_SECONDARY, false);
+        initActivity(intent);
+        mOrientation = BaseGridView.HORIZONTAL;
+        mNumRows = 1;
+
+        final int childTop = mGridView.getChildAt(0).getTop();
+        // scroll to end, all children's top should not change.
+        scrollToEnd(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < mGridView.getChildCount(); i++) {
+                    assertEquals(childTop, mGridView.getChildAt(i).getTop());
+                }
+            }
+        });
+        // sanity check last child has focus with a larger width.
+        assertTrue(mGridView.getChildAt(0).getWidth()
+                < mGridView.getChildAt(mGridView.getChildCount() - 1).getWidth());
+        assertEquals(mGridView.getPaddingLeft(),
+                mGridView.getChildAt(mGridView.getChildCount() - 1).getLeft());
+    }
+
+    @Test
     public void testAccessibility() throws Throwable {
         Intent intent = new Intent();
         intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID,
@@ -4530,6 +4725,80 @@ public class GridWidgetTest {
         });
         Thread.sleep(500);
         assertEquals(-1, mGridView.getSelectedPosition());
+    }
+
+    @Test
+    public void testUpdateAndSelect1() throws Throwable {
+        Intent intent = new Intent();
+        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID, R.layout.vertical_linear);
+        intent.putExtra(GridActivity.EXTRA_HAS_STABLE_IDS, false);
+        intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, 10);
+        intent.putExtra(GridActivity.EXTRA_STAGGERED, false);
+        mOrientation = BaseGridView.VERTICAL;
+        mNumRows = 1;
+
+        initActivity(intent);
+
+        mActivityTestRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mGridView.getAdapter().notifyDataSetChanged();
+                mGridView.setSelectedPosition(1);
+            }
+        });
+        waitOneUiCycle();
+        assertEquals(1, mGridView.getSelectedPosition());
+    }
+
+    @Test
+    public void testUpdateAndSelect2() throws Throwable {
+        Intent intent = new Intent();
+        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID, R.layout.vertical_linear);
+        intent.putExtra(GridActivity.EXTRA_HAS_STABLE_IDS, false);
+        intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, 100);
+        intent.putExtra(GridActivity.EXTRA_STAGGERED, false);
+        mOrientation = BaseGridView.VERTICAL;
+        mNumRows = 1;
+
+        initActivity(intent);
+
+        mActivityTestRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mGridView.getAdapter().notifyDataSetChanged();
+                mGridView.setSelectedPosition(50);
+            }
+        });
+        waitOneUiCycle();
+        assertEquals(50, mGridView.getSelectedPosition());
+    }
+
+    @Test
+    public void testUpdateAndSelect3() throws Throwable {
+        Intent intent = new Intent();
+        intent.putExtra(GridActivity.EXTRA_LAYOUT_RESOURCE_ID, R.layout.vertical_linear);
+        intent.putExtra(GridActivity.EXTRA_HAS_STABLE_IDS, false);
+        intent.putExtra(GridActivity.EXTRA_NUM_ITEMS, 10);
+        intent.putExtra(GridActivity.EXTRA_STAGGERED, false);
+        mOrientation = BaseGridView.VERTICAL;
+        mNumRows = 1;
+
+        initActivity(intent);
+
+        mActivityTestRule.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                int[] newItems = new int[100];
+                for (int i = 0; i < newItems.length; i++) {
+                    newItems[i] = mActivity.mItemLengths[0];
+                }
+                mActivity.addItems(0, newItems, false);
+                mGridView.getAdapter().notifyDataSetChanged();
+                mGridView.setSelectedPosition(50);
+            }
+        });
+        waitOneUiCycle();
+        assertEquals(50, mGridView.getSelectedPosition());
     }
 
     @Test

@@ -36,44 +36,80 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import android.arch.core.executor.AppToolkitTaskExecutor;
+import android.arch.core.executor.ArchTaskExecutor;
 import android.arch.lifecycle.util.InstantTaskExecutor;
 import android.support.annotation.Nullable;
-import android.support.test.filters.SmallTest;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 @SuppressWarnings({"unchecked"})
-@SmallTest
+@RunWith(JUnit4.class)
 public class LiveDataTest {
     private PublicLiveData<String> mLiveData;
+    private MethodExec mActiveObserversChanged;
+
     private LifecycleOwner mOwner;
     private LifecycleRegistry mRegistry;
-    private MethodExec mActiveObserversChanged;
+
+    private LifecycleOwner mOwner2;
+    private LifecycleRegistry mRegistry2;
+
+    private LifecycleOwner mOwner3;
+    private Lifecycle mLifecycle3;
+    private Observer<String> mObserver3;
+
+    private LifecycleOwner mOwner4;
+    private Lifecycle mLifecycle4;
+    private Observer<String> mObserver4;
+
     private boolean mInObserver;
 
     @Before
     public void init() {
         mLiveData = new PublicLiveData<>();
+
+        mActiveObserversChanged = mock(MethodExec.class);
+        mLiveData.activeObserversChanged = mActiveObserversChanged;
+
         mOwner = mock(LifecycleOwner.class);
         mRegistry = new LifecycleRegistry(mOwner);
         when(mOwner.getLifecycle()).thenReturn(mRegistry);
-        mActiveObserversChanged = mock(MethodExec.class);
-        mLiveData.activeObserversChanged = mActiveObserversChanged;
+
+        mOwner2 = mock(LifecycleOwner.class);
+        mRegistry2 = new LifecycleRegistry(mOwner2);
+        when(mOwner2.getLifecycle()).thenReturn(mRegistry2);
+
         mInObserver = false;
     }
 
     @Before
+    public void initNonLifecycleRegistry() {
+        mOwner3 = mock(LifecycleOwner.class);
+        mLifecycle3 = mock(Lifecycle.class);
+        mObserver3 = (Observer<String>) mock(Observer.class);
+        when(mOwner3.getLifecycle()).thenReturn(mLifecycle3);
+
+        mOwner4 = mock(LifecycleOwner.class);
+        mLifecycle4 = mock(Lifecycle.class);
+        mObserver4 = (Observer<String>) mock(Observer.class);
+        when(mOwner4.getLifecycle()).thenReturn(mLifecycle4);
+    }
+
+    @Before
     public void swapExecutorDelegate() {
-        AppToolkitTaskExecutor.getInstance().setDelegate(new InstantTaskExecutor());
+        ArchTaskExecutor.getInstance().setDelegate(new InstantTaskExecutor());
     }
 
     @After
     public void removeExecutorDelegate() {
-        AppToolkitTaskExecutor.getInstance().setDelegate(null);
+        ArchTaskExecutor.getInstance().setDelegate(null);
     }
 
     @Test
@@ -157,14 +193,11 @@ public class LiveDataTest {
     @Test
     public void testAddSameObserverIn2LifecycleOwners() {
         Observer<String> observer = (Observer<String>) mock(Observer.class);
-        LifecycleOwner owner2 = mock(LifecycleOwner.class);
-        LifecycleRegistry registry2 = new LifecycleRegistry(owner2);
-        when(owner2.getLifecycle()).thenReturn(registry2);
 
         mLiveData.observe(mOwner, observer);
         Throwable throwable = null;
         try {
-            mLiveData.observe(owner2, observer);
+            mLiveData.observe(mOwner2, observer);
         } catch (Throwable t) {
             throwable = t;
         }
@@ -418,6 +451,339 @@ public class LiveDataTest {
         verify(mActiveObserversChanged, never()).onCall(anyBoolean());
         mRegistry.handleLifecycleEvent(ON_START);
         verify(mActiveObserversChanged, never()).onCall(anyBoolean());
+    }
+
+    @Test
+    public void testRemoveDuringAddition() {
+        mRegistry.handleLifecycleEvent(ON_START);
+        mLiveData.setValue("bla");
+        mLiveData.observeForever(new Observer<String>() {
+            @Override
+            public void onChanged(@Nullable String s) {
+                mLiveData.removeObserver(this);
+            }
+        });
+        assertThat(mLiveData.hasActiveObservers(), is(false));
+        InOrder inOrder = Mockito.inOrder(mActiveObserversChanged);
+        inOrder.verify(mActiveObserversChanged).onCall(true);
+        inOrder.verify(mActiveObserversChanged).onCall(false);
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    @Test
+    public void testRemoveDuringBringingUpToState() {
+        mLiveData.setValue("bla");
+        mLiveData.observeForever(new Observer<String>() {
+            @Override
+            public void onChanged(@Nullable String s) {
+                mLiveData.removeObserver(this);
+            }
+        });
+        mRegistry.handleLifecycleEvent(ON_RESUME);
+        assertThat(mLiveData.hasActiveObservers(), is(false));
+        InOrder inOrder = Mockito.inOrder(mActiveObserversChanged);
+        inOrder.verify(mActiveObserversChanged).onCall(true);
+        inOrder.verify(mActiveObserversChanged).onCall(false);
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    @Test
+    public void setValue_neverActive_observerOnChangedNotCalled() {
+        Observer<String> observer = (Observer<String>) mock(Observer.class);
+        mLiveData.observe(mOwner, observer);
+
+        mLiveData.setValue("1");
+
+        verify(observer, never()).onChanged(anyString());
+    }
+
+    @Test
+    public void setValue_twoObserversTwoStartedOwners_onChangedCalledOnBoth() {
+        Observer<String> observer1 = mock(Observer.class);
+        Observer<String> observer2 = mock(Observer.class);
+
+        mLiveData.observe(mOwner, observer1);
+        mLiveData.observe(mOwner2, observer2);
+
+        mRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START);
+        mRegistry2.handleLifecycleEvent(Lifecycle.Event.ON_START);
+
+        mLiveData.setValue("1");
+
+        verify(observer1).onChanged("1");
+        verify(observer2).onChanged("1");
+    }
+
+    @Test
+    public void setValue_twoObserversOneStartedOwner_onChangedCalledOnOneCorrectObserver() {
+        Observer<String> observer1 = mock(Observer.class);
+        Observer<String> observer2 = mock(Observer.class);
+
+        mLiveData.observe(mOwner, observer1);
+        mLiveData.observe(mOwner2, observer2);
+
+        mRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START);
+
+        mLiveData.setValue("1");
+
+        verify(observer1).onChanged("1");
+        verify(observer2, never()).onChanged(anyString());
+    }
+
+    @Test
+    public void setValue_twoObserversBothStartedAfterSetValue_onChangedCalledOnBoth() {
+        Observer<String> observer1 = mock(Observer.class);
+        Observer<String> observer2 = mock(Observer.class);
+
+        mLiveData.observe(mOwner, observer1);
+        mLiveData.observe(mOwner2, observer2);
+
+        mLiveData.setValue("1");
+
+        mRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START);
+        mRegistry2.handleLifecycleEvent(Lifecycle.Event.ON_START);
+
+        verify(observer1).onChanged("1");
+        verify(observer1).onChanged("1");
+    }
+
+    @Test
+    public void setValue_twoObserversOneStartedAfterSetValue_onChangedCalledOnCorrectObserver() {
+        Observer<String> observer1 = mock(Observer.class);
+        Observer<String> observer2 = mock(Observer.class);
+
+        mLiveData.observe(mOwner, observer1);
+        mLiveData.observe(mOwner2, observer2);
+
+        mLiveData.setValue("1");
+
+        mRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START);
+
+        verify(observer1).onChanged("1");
+        verify(observer2, never()).onChanged(anyString());
+    }
+
+    @Test
+    public void setValue_twoObserversOneStarted_liveDataBecomesActive() {
+        Observer<String> observer1 = mock(Observer.class);
+        Observer<String> observer2 = mock(Observer.class);
+
+        mLiveData.observe(mOwner, observer1);
+        mLiveData.observe(mOwner2, observer2);
+
+        mRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START);
+
+        verify(mActiveObserversChanged).onCall(true);
+    }
+
+    @Test
+    public void setValue_twoObserversOneStopped_liveDataStaysActive() {
+        Observer<String> observer1 = mock(Observer.class);
+        Observer<String> observer2 = mock(Observer.class);
+
+        mLiveData.observe(mOwner, observer1);
+        mLiveData.observe(mOwner2, observer2);
+
+        mRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START);
+        mRegistry2.handleLifecycleEvent(Lifecycle.Event.ON_START);
+
+        verify(mActiveObserversChanged).onCall(true);
+
+        reset(mActiveObserversChanged);
+        mRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP);
+
+        verify(mActiveObserversChanged, never()).onCall(anyBoolean());
+    }
+
+    @Test
+    public void setValue_lifecycleIsCreatedNoEvent_liveDataBecomesInactiveAndObserverNotCalled() {
+
+        // Arrange.
+
+        mLiveData.observe(mOwner3, mObserver3);
+
+        GenericLifecycleObserver lifecycleObserver = getGenericLifecycleObserver(mLifecycle3);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        lifecycleObserver.onStateChanged(mOwner3, Lifecycle.Event.ON_START);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.CREATED);
+
+        reset(mActiveObserversChanged);
+        reset(mObserver3);
+
+        // Act.
+
+        mLiveData.setValue("1");
+
+        // Assert.
+
+        verify(mActiveObserversChanged).onCall(false);
+        verify(mObserver3, never()).onChanged(anyString());
+    }
+
+    /*
+     * Arrange: LiveData was made inactive via SetValue (because the Lifecycle it was
+     * observing was in the CREATED state and no event was dispatched).
+     * Act: Lifecycle enters Started state and dispatches event.
+     * Assert: LiveData becomes active and dispatches new value to observer.
+     */
+    @Test
+    public void test_liveDataInactiveViaSetValueThenLifecycleResumes() {
+
+        // Arrange.
+
+        mLiveData.observe(mOwner3, mObserver3);
+
+        GenericLifecycleObserver lifecycleObserver = getGenericLifecycleObserver(mLifecycle3);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        lifecycleObserver.onStateChanged(mOwner3, Lifecycle.Event.ON_START);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.CREATED);
+        mLiveData.setValue("1");
+
+        reset(mActiveObserversChanged);
+        reset(mObserver3);
+
+        // Act.
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        lifecycleObserver.onStateChanged(mOwner3, Lifecycle.Event.ON_START);
+
+        // Assert.
+
+        verify(mActiveObserversChanged).onCall(true);
+        verify(mObserver3).onChanged("1");
+    }
+
+    /*
+     * Arrange: One of two Lifecycles enter the CREATED state without sending an event.
+     * Act: Lifecycle's setValue method is called with new value.
+     * Assert: LiveData stays active and new value is dispatched to Lifecycle that is still at least
+     * STARTED.
+     */
+    @Test
+    public void setValue_oneOfTwoLifecyclesAreCreatedNoEvent() {
+
+        // Arrange.
+
+        mLiveData.observe(mOwner3, mObserver3);
+        mLiveData.observe(mOwner4, mObserver4);
+
+        GenericLifecycleObserver lifecycleObserver3 = getGenericLifecycleObserver(mLifecycle3);
+        GenericLifecycleObserver lifecycleObserver4 = getGenericLifecycleObserver(mLifecycle4);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        when(mLifecycle4.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        lifecycleObserver3.onStateChanged(mOwner3, Lifecycle.Event.ON_START);
+        lifecycleObserver4.onStateChanged(mOwner4, Lifecycle.Event.ON_START);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.CREATED);
+
+        reset(mActiveObserversChanged);
+        reset(mObserver3);
+        reset(mObserver4);
+
+        // Act.
+
+        mLiveData.setValue("1");
+
+        // Assert.
+
+        verify(mActiveObserversChanged, never()).onCall(anyBoolean());
+        verify(mObserver3, never()).onChanged(anyString());
+        verify(mObserver4).onChanged("1");
+    }
+
+    /*
+     * Arrange: Two observed Lifecycles enter the CREATED state without sending an event.
+     * Act: Lifecycle's setValue method is called with new value.
+     * Assert: LiveData becomes inactive and nothing is dispatched to either observer.
+     */
+    @Test
+    public void setValue_twoLifecyclesAreCreatedNoEvent() {
+
+        // Arrange.
+
+        mLiveData.observe(mOwner3, mObserver3);
+        mLiveData.observe(mOwner4, mObserver4);
+
+        GenericLifecycleObserver lifecycleObserver3 = getGenericLifecycleObserver(mLifecycle3);
+        GenericLifecycleObserver lifecycleObserver4 = getGenericLifecycleObserver(mLifecycle4);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        when(mLifecycle4.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        lifecycleObserver3.onStateChanged(mOwner3, Lifecycle.Event.ON_START);
+        lifecycleObserver4.onStateChanged(mOwner4, Lifecycle.Event.ON_START);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.CREATED);
+        when(mLifecycle4.getCurrentState()).thenReturn(Lifecycle.State.CREATED);
+
+        reset(mActiveObserversChanged);
+        reset(mObserver3);
+        reset(mObserver4);
+
+        // Act.
+
+        mLiveData.setValue("1");
+
+        // Assert.
+
+        verify(mActiveObserversChanged).onCall(false);
+        verify(mObserver3, never()).onChanged(anyString());
+        verify(mObserver3, never()).onChanged(anyString());
+    }
+
+    /*
+     * Arrange: LiveData was made inactive via SetValue (because both Lifecycles it was
+     * observing were in the CREATED state and no event was dispatched).
+     * Act: One Lifecycle enters STARTED state and dispatches lifecycle event.
+     * Assert: LiveData becomes active and dispatches new value to observer associated with started
+     * Lifecycle.
+     */
+    @Test
+    public void test_liveDataInactiveViaSetValueThenOneLifecycleResumes() {
+
+        // Arrange.
+
+        mLiveData.observe(mOwner3, mObserver3);
+        mLiveData.observe(mOwner4, mObserver4);
+
+        GenericLifecycleObserver lifecycleObserver3 = getGenericLifecycleObserver(mLifecycle3);
+        GenericLifecycleObserver lifecycleObserver4 = getGenericLifecycleObserver(mLifecycle4);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        when(mLifecycle4.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        lifecycleObserver3.onStateChanged(mOwner3, Lifecycle.Event.ON_START);
+        lifecycleObserver4.onStateChanged(mOwner4, Lifecycle.Event.ON_START);
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.CREATED);
+        when(mLifecycle4.getCurrentState()).thenReturn(Lifecycle.State.CREATED);
+
+        mLiveData.setValue("1");
+
+        reset(mActiveObserversChanged);
+        reset(mObserver3);
+        reset(mObserver4);
+
+        // Act.
+
+        when(mLifecycle3.getCurrentState()).thenReturn(Lifecycle.State.STARTED);
+        lifecycleObserver3.onStateChanged(mOwner3, Lifecycle.Event.ON_START);
+
+        // Assert.
+
+        verify(mActiveObserversChanged).onCall(true);
+        verify(mObserver3).onChanged("1");
+        verify(mObserver4, never()).onChanged(anyString());
+    }
+
+    private GenericLifecycleObserver getGenericLifecycleObserver(Lifecycle lifecycle) {
+        ArgumentCaptor<GenericLifecycleObserver> captor =
+                ArgumentCaptor.forClass(GenericLifecycleObserver.class);
+        verify(lifecycle).addObserver(captor.capture());
+        return (captor.getValue());
     }
 
     @SuppressWarnings("WeakerAccess")

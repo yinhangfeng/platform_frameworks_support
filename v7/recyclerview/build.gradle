@@ -1,34 +1,75 @@
+/**
+import android.support.LibraryGroups
+import android.support.LibraryVersions
+
+plugins {
+    id("SupportAndroidLibraryPlugin")
+}
+
+dependencies {
+    api project(':support-annotations')
+    api project(':support-compat')
+    api project(':support-core-ui')
+
+    androidTestImplementation libs.test_runner,      { exclude module: 'support-annotations' }
+    androidTestImplementation libs.espresso_core,    { exclude module: 'support-annotations' }
+    androidTestImplementation libs.mockito_core,     { exclude group: 'net.bytebuddy' } // DexMaker has it"s own MockMaker
+    androidTestImplementation libs.dexmaker_mockito, { exclude group: 'net.bytebuddy' } // DexMaker has it"s own MockMaker
+    androidTestImplementation libs.junit
+    androidTestImplementation project(':support-testutils')
+
+    testImplementation libs.junit
+    testImplementation libs.mockito_core
+    testImplementation libs.test_runner, { exclude module: 'support-annotations' }
+}
+
+android {
+    defaultConfig {
+        minSdkVersion 14
+    }
+
+    sourceSets {
+        main.res.srcDirs 'res', 'res-public'
+    }
+
+    buildTypes.all {
+        consumerProguardFiles 'proguard-rules.pro'
+    }
+}
+
+supportLibrary {
+    name = "Android Support RecyclerView v7"
+    publish = true
+    mavenVersion = LibraryVersions.SUPPORT_LIBRARY
+    mavenGroup = LibraryGroups.SUPPORT
+    inceptionYear = "2014"
+    description = "Android Support RecyclerView v7"
+    legacySourceLocation = true
+}
+*/
+
 apply plugin: 'com.android.library'
 
 dependencies {
-    compile "com.android.support:support-annotations:${rootProject.ext.extSupportversion}"
-    compile "com.android.support:support-compat:${rootProject.ext.extSupportversion}"
-    compile "com.android.support:support-core-ui:${rootProject.ext.extSupportversion}"
+    api "com.android.support:support-annotations:${rootProject.ext.extSupportversion}"
+    api "com.android.support:support-compat:${rootProject.ext.extSupportversion}"
+    api "com.android.support:support-core-ui:${rootProject.ext.extSupportversion}"
 }
 
 android {
 
     compileSdkVersion rootProject.ext.currentSdk
-    buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
         minSdkVersion 14
-//        targetSdkVersion rootProject.ext.currentSdk
     }
 
     sourceSets {
-        main.java.srcDir 'src'
         main.res.srcDirs 'res', 'res-public'
         main.manifest.srcFile 'AndroidManifest.xml'
-
-//        test.java.srcDir 'jvm-tests/src'
     }
 
-//    testOptions {
-//        unitTests.returnDefaultValues = true
-//    }
-//
-//    buildTypes.all {
-//        consumerProguardFiles 'proguard-rules.pro'
-//    }
+    buildTypes.all {
+        consumerProguardFiles 'proguard-rules.pro'
+    }
 }

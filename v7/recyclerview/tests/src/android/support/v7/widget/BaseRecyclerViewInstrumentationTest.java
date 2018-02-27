@@ -37,7 +37,6 @@ import android.support.test.InstrumentationRegistry;
 import android.support.test.rule.ActivityTestRule;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.recyclerview.test.R;
-import android.support.v7.recyclerview.test.SameActivityTestRule;
 import android.text.Editable;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -81,12 +80,7 @@ abstract public class BaseRecyclerViewInstrumentationTest {
     Thread mInstrumentationThread;
 
     @Rule
-    public ActivityTestRule<TestActivity> mActivityRule = new SameActivityTestRule() {
-        @Override
-        public boolean canReUseActivity() {
-            return BaseRecyclerViewInstrumentationTest.this.canReUseActivity();
-        }
-    };
+    public ActivityTestRule<TestActivity> mActivityRule = new ActivityTestRule(TestActivity.class);
 
     public BaseRecyclerViewInstrumentationTest() {
         this(false);
@@ -1089,11 +1083,16 @@ abstract public class BaseRecyclerViewInstrumentationTest {
             });
         }
 
-        public void clearOnUIThread() {
+        void changeAllItemsAndNotifyDataSetChanged(int count) {
             assertEquals("clearOnUIThread called from a wrong thread",
                     Looper.getMainLooper(), Looper.myLooper());
-            mItems = new ArrayList<Item>();
+            mItems = new ArrayList<>();
+            addItems(0, count, DEFAULT_ITEM_PREFIX);
             notifyDataSetChanged();
+        }
+
+        public void clearOnUIThread() {
+            changeAllItemsAndNotifyDataSetChanged(0);
         }
 
         protected void moveInUIThread(int from, int to) {

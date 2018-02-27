@@ -16,10 +16,16 @@
 
 package android.arch.lifecycle.testapp;
 
-import android.arch.lifecycle.LifecycleActivity;
+import android.support.v4.app.FragmentActivity;
 
 /**
  *  an activity with Dialog theme.
  */
-public class NavigationDialogActivity extends LifecycleActivity {
+public class NavigationDialogActivity extends FragmentActivity {
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // helps with less flaky API 16 tests
+        overridePendingTransition(0, 0);
+    }
 }

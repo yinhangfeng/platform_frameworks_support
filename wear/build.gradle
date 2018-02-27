@@ -1,20 +1,23 @@
-apply plugin: android.support.SupportLibraryPlugin
-archivesBaseName = 'wear'
+import android.support.LibraryGroups
+import android.support.LibraryVersions
+
+plugins {
+    id("SupportAndroidLibraryPlugin")
+}
 
 dependencies {
     api project(':support-annotations')
     api project(':support-core-ui')
-    api project(':support-percent')
-    api project(':support-recyclerview-v7')
+    api project(':support-fragment')
+    api project(':percent')
+    api project(':recyclerview-v7')
 
-    androidTestImplementation (libs.test_runner) {
-        exclude module: 'support-annotations'
-    }
-    androidTestImplementation (libs.espresso_core) {
-        exclude module: 'support-annotations'
-    }
-    androidTestImplementation libs.mockito_core
-    androidTestImplementation libs.dexmaker_mockito
+    androidTestImplementation libs.test_runner,      { exclude module: 'support-annotations' }
+    androidTestImplementation libs.espresso_core,    { exclude module: 'support-annotations' }
+    androidTestImplementation libs.mockito_core,     { exclude group: 'net.bytebuddy' } // DexMaker has it"s own MockMaker
+    androidTestImplementation libs.dexmaker_mockito, { exclude group: 'net.bytebuddy' } // DexMaker has it"s own MockMaker
+
+    provided fileTree(dir: 'wear_stubs', include: ['com.google.android.wearable-stubs.jar'])
 }
 
 android {
@@ -23,8 +26,10 @@ android {
     }
 
     sourceSets {
-        main.java.srcDir 'src'
         main.res.srcDirs 'res', 'res-public'
+        main.resources {
+            includes = ["wear_stubs/LICENSE"]
+        }
     }
 
     buildTypes.all {
@@ -33,7 +38,11 @@ android {
 }
 
 supportLibrary {
-    name 'Android Wear Support UI'
-    inceptionYear '2016'
-    description 'Android Wear Support UI'
+    name = "Android Wear Support UI"
+    publish = true
+    mavenVersion = LibraryVersions.SUPPORT_LIBRARY
+    mavenGroup = LibraryGroups.SUPPORT
+    inceptionYear = "2016"
+    description = "Android Wear Support UI"
+    legacySourceLocation = true
 }

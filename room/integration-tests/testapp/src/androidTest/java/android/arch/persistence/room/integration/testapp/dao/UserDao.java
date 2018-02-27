@@ -17,17 +17,19 @@
 package android.arch.persistence.room.integration.testapp.dao;
 
 import android.arch.lifecycle.LiveData;
+import android.arch.paging.DataSource;
+import android.arch.paging.LivePagedListProvider;
+import android.arch.paging.TiledDataSource;
 import android.arch.persistence.room.Dao;
 import android.arch.persistence.room.Delete;
 import android.arch.persistence.room.Insert;
 import android.arch.persistence.room.OnConflictStrategy;
 import android.arch.persistence.room.Query;
+import android.arch.persistence.room.Transaction;
 import android.arch.persistence.room.Update;
 import android.arch.persistence.room.integration.testapp.TestDatabase;
 import android.arch.persistence.room.integration.testapp.vo.AvgWeightByAge;
 import android.arch.persistence.room.integration.testapp.vo.User;
-import android.arch.util.paging.CountedDataSource;
-import android.arch.util.paging.LiveLazyListProvider;
 import android.database.Cursor;
 
 import org.reactivestreams.Publisher;
@@ -58,6 +60,9 @@ public abstract class UserDao {
 
     @Query("select * from user where mId IN(:ids)")
     public abstract User[] loadByIds(int... ids);
+
+    @Query("select * from user where custommm = :customField")
+    public abstract List<User> findByCustomField(String customField);
 
     @Insert
     public abstract void insert(User user);
@@ -153,7 +158,6 @@ public abstract class UserDao {
     public abstract Publisher<Integer> publisherCountUsers();
 
     @Query("SELECT mBirthday from User where mId = :id")
-
     public abstract Date getBirthday(int id);
 
     @Query("SELECT COUNT(*) from user")
@@ -181,10 +185,17 @@ public abstract class UserDao {
     }
 
     @Query("SELECT * FROM user where mAge > :age")
-    public abstract LiveLazyListProvider<User> loadPagedByAge(int age);
+    public abstract DataSource.Factory<Integer, User> loadPagedByAge(int age);
+
+    @Query("SELECT * FROM user where mAge > :age")
+    public abstract LivePagedListProvider<Integer, User> loadPagedByAge_legacy(int age);
+
+    // TODO: switch to PositionalDataSource once Room supports it
+    @Query("SELECT * FROM user ORDER BY mAge DESC")
+    public abstract DataSource.Factory<Integer, User> loadUsersByAgeDesc();
 
     @Query("SELECT * FROM user ORDER BY mAge DESC")
-    public abstract CountedDataSource<User> loadUsersByAgeDesc();
+    public abstract TiledDataSource<User> loadUsersByAgeDesc_legacy();
 
     @Query("DELETE FROM User WHERE mId IN (:ids) AND mAge == :age")
     public abstract int deleteByAgeAndIds(int age, List<Integer> ids);
@@ -197,33 +208,9 @@ public abstract class UserDao {
     @Query("SELECT COUNT(*) from user")
     public abstract Integer getUserCount();
 
-    //   name desc
-    @Query("SELECT * from user ORDER BY mName DESC LIMIT :limit OFFSET :offset")
-    public abstract List<User> userNameLimitOffset(int limit, int offset);
-
-    @Query("SELECT * from user WHERE mName < :key ORDER BY mName DESC LIMIT :limit")
-    public abstract List<User> userNameLoadAfter(String key, int limit);
-
-    @Query("SELECT * from user WHERE mName > :key ORDER BY mName ASC LIMIT :limit")
-    public abstract List<User> userNameLoadBefore(String key, int limit);
-
-    //    last asc, first desc, id asc
-    @Query("SELECT * from user"
-            + " ORDER BY mLastName DESC, mName ASC, mId DESC"
-            + " LIMIT :limit OFFSET :offset")
-    public abstract List<User> userComplexLimitOffset(int limit, int offset);
-
-    @Query("SELECT * from user"
-            + " WHERE mLastName < :lastName or (mLastName = :lastName and (mName > :name or (mName = :name and mId < :id)))"
-            + " ORDER BY mLastName DESC, mName ASC, mId DESC"
-            + " LIMIT :limit")
-    public abstract List<User> userComplexLoadAfter(String lastName, String name, int id, int limit);
-
-    @Query("SELECT * from user"
-            + " WHERE mLastName > :lastName or (mLastName = :lastName and (mName < :name or (mName = :name and mId > :id)))"
-            + " ORDER BY mLastName ASC, mName DESC, mId ASC"
-            + " LIMIT :limit")
-    public abstract List<User> userComplexLoadBefore(String lastName, String name, int id, int limit);
-
-
+    @Transaction
+    public void insertBothByAnnotation(final User a, final User b) {
+        insert(a);
+        insert(b);
+    }
 }

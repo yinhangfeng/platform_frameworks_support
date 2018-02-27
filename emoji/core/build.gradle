@@ -1,5 +1,9 @@
-apply plugin: android.support.SupportLibraryPlugin
-archivesBaseName = 'support-emoji'
+import android.support.LibraryGroups
+import android.support.LibraryVersions
+
+plugins {
+    id("SupportAndroidLibraryPlugin")
+}
 
 ext {
     fontDir = project(':noto-emoji-compat').projectDir
@@ -17,35 +21,35 @@ dependencies {
 
     api project(':support-compat')
 
-    androidTestImplementation (libs.test_runner) {
-        exclude module: 'support-annotations'
-    }
-    androidTestImplementation (libs.espresso_core) {
-        exclude module: 'support-annotations'
-    }
-    androidTestImplementation libs.mockito_core
-    androidTestImplementation libs.dexmaker_mockito
+    androidTestImplementation libs.test_runner,      { exclude module: 'support-annotations' }
+    androidTestImplementation libs.espresso_core,    { exclude module: 'support-annotations' }
+    androidTestImplementation libs.mockito_core,     { exclude group: 'net.bytebuddy' } // DexMaker has it"s own MockMaker
+    androidTestImplementation libs.dexmaker_mockito, { exclude group: 'net.bytebuddy' } // DexMaker has it"s own MockMaker
     androidTestImplementation project(':support-testutils')
 }
 
 android {
-    compileSdkVersion project.ext.currentSdk
-
     defaultConfig {
         minSdkVersion 14
     }
 
     sourceSets {
-        main.java {
-            srcDirs = ['src']
-        }
-        main.res.srcDirs = ['res', 'res-public']
-        main.resources {
-            srcDirs = [fontDir.getAbsolutePath()]
-            includes = ["LICENSE_UNICODE", "LICENSE_OFL"]
+        main {
+            // We use a non-standard manifest path.
+            manifest.srcFile 'AndroidManifest.xml'
+            res.srcDirs += 'src/main/res-public'
+            resources {
+                srcDirs = [fontDir.getAbsolutePath()]
+                includes = ["LICENSE_UNICODE", "LICENSE_OFL"]
+            }
         }
 
         androidTest {
+            // We use a non-standard test directory structure.
+            root 'tests'
+            java.srcDir 'tests/src'
+            res.srcDir 'tests/res'
+            manifest.srcFile 'tests/AndroidManifest.xml'
             assets {
                 srcDirs = [new File(fontDir, "font").getAbsolutePath(),
                            new File(fontDir, "supported-emojis").getAbsolutePath()]
@@ -55,17 +59,20 @@ android {
 }
 
 supportLibrary {
-    name 'Android Emoji Compat'
-    inceptionYear '2017'
-    description 'Core library to enable emoji compatibility in Kitkat and newer devices to avoid the empty emoji characters.'
+    name = "Android Emoji Compat"
+    publish = true
+    mavenVersion = LibraryVersions.SUPPORT_LIBRARY
+    mavenGroup = LibraryGroups.SUPPORT
+    inceptionYear = "2017"
+    description = "Core library to enable emoji compatibility in Kitkat and newer devices to avoid the empty emoji characters."
 
     license {
-        name 'SIL Open Font License, Version 1.1'
-        url  'http://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web'
+        name = "SIL Open Font License, Version 1.1"
+        url = "http://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web"
     }
 
     license {
-        name 'Unicode, Inc. License'
-        url 'http://www.unicode.org/copyright.html#License'
+        name = "Unicode, Inc. License"
+        url = "http://www.unicode.org/copyright.html#License"
     }
 }

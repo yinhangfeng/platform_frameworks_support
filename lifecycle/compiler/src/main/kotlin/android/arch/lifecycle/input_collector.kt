@@ -17,7 +17,9 @@
 package android.arch.lifecycle
 
 import android.arch.lifecycle.model.EventMethod
+import android.arch.lifecycle.model.InputModel
 import android.arch.lifecycle.model.LifecycleObserverInfo
+import android.arch.lifecycle.model.getAdapterName
 import com.google.auto.common.MoreElements
 import com.google.auto.common.MoreTypes
 import javax.annotation.processing.ProcessingEnvironment
@@ -28,32 +30,85 @@ import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Modifier
 import javax.lang.model.element.TypeElement
 import javax.lang.model.element.VariableElement
+import javax.lang.model.type.TypeMirror
+import javax.lang.model.util.Elements
+import javax.lang.model.util.Types
 import javax.tools.Diagnostic
 
 fun collectAndVerifyInput(processingEnv: ProcessingEnvironment,
-                          roundEnv: RoundEnvironment): Map<TypeElement, LifecycleObserverInfo> {
+                          roundEnv: RoundEnvironment): InputModel {
     val validator = Validator(processingEnv)
-
-    return roundEnv.getElementsAnnotatedWith(OnLifecycleEvent::class.java).map { elem ->
+    val worldCollector = ObserversCollector(processingEnv)
+    val roots = roundEnv.getElementsAnnotatedWith(OnLifecycleEvent::class.java).map { elem ->
         if (elem.kind != ElementKind.METHOD) {
             validator.printErrorMessage(ErrorMessages.INVALID_ANNOTATED_ELEMENT, elem)
             null
         } else {
             val enclosingElement = elem.enclosingElement
-            val onState = elem.getAnnotation(OnLifecycleEvent::class.java)
-            val method = MoreElements.asExecutable(elem)
-            if (validator.validateClass(enclosingElement)
-                    && validator.validateMethod(method, onState.value)) {
-                EventMethod(method, onState, MoreElements.asType(enclosingElement))
+            if (validator.validateClass(enclosingElement)) {
+                MoreElements.asType(enclosingElement)
             } else {
                 null
             }
         }
-    }
-            .filterNotNull()
-            .groupBy { MoreElements.asType(it.method.enclosingElement) }
-            .mapValues { entry -> LifecycleObserverInfo(entry.key, entry.value) }
+    }.filterNotNull().toSet()
+    roots.forEach { worldCollector.collect(it) }
+    val observersInfo = worldCollector.observers
+    val generatedAdapters = worldCollector.observers.keys
+            .mapNotNull { type ->
+                worldCollector.generatedAdapterInfoFor(type)?.let { type to it }
+            }.toMap()
+    return InputModel(roots, observersInfo, generatedAdapters)
+}
 
+class ObserversCollector(processingEnv: ProcessingEnvironment) {
+    val typeUtils: Types = processingEnv.typeUtils
+    val elementUtils: Elements = processingEnv.elementUtils
+    val lifecycleObserverTypeMirror: TypeMirror =
+            elementUtils.getTypeElement(LifecycleObserver::class.java.canonicalName).asType()
+    val validator = Validator(processingEnv)
+    val observers: MutableMap<TypeElement, LifecycleObserverInfo> = mutableMapOf()
+
+    fun collect(type: TypeElement): LifecycleObserverInfo? {
+        if (type in observers) {
+            return observers[type]
+        }
+        val parents = (listOf(type.superclass) + type.interfaces)
+                .filter { typeUtils.isAssignable(it, lifecycleObserverTypeMirror) }
+                .filterNot { typeUtils.isSameType(it, lifecycleObserverTypeMirror) }
+                .map { collect(MoreTypes.asTypeElement(it)) }
+                .filterNotNull()
+        val info = createObserverInfo(type, parents)
+        if (info != null) {
+            observers[type] = info
+        }
+        return info
+    }
+
+    fun generatedAdapterInfoFor(type: TypeElement): List<ExecutableElement>? {
+        val packageName = if (type.getPackageQName().isEmpty()) "" else "${type.getPackageQName()}."
+        val adapterType = elementUtils.getTypeElement(packageName + getAdapterName(type))
+        return adapterType?.methods()
+                ?.filter { executable -> isSyntheticMethod(executable) }
+    }
+
+    private fun createObserverInfo(typeElement: TypeElement,
+                                   parents: List<LifecycleObserverInfo>): LifecycleObserverInfo? {
+        if (!validator.validateClass(typeElement)) {
+            return null
+        }
+        val methods = typeElement.methods().filter { executable ->
+            MoreElements.isAnnotationPresent(executable, OnLifecycleEvent::class.java)
+        }.map { executable ->
+            val onState = executable.getAnnotation(OnLifecycleEvent::class.java)
+            if (validator.validateMethod(executable, onState.value)) {
+                EventMethod(executable, onState, typeElement)
+            } else {
+                null
+            }
+        }.filterNotNull()
+        return LifecycleObserverInfo(typeElement, methods, parents)
+    }
 }
 
 class Validator(val processingEnv: ProcessingEnvironment) {
@@ -100,7 +155,7 @@ class Validator(val processingEnv: ProcessingEnvironment) {
     }
 
     fun validateClass(classElement: Element): Boolean {
-        if (classElement.kind != ElementKind.CLASS && classElement.kind != ElementKind.INTERFACE) {
+        if (!MoreElements.isType(classElement)) {
             printErrorMessage(ErrorMessages.INVALID_ENCLOSING_ELEMENT, classElement)
             return false
         }

@@ -16,11 +16,10 @@
 
 package android.arch.paging.integration.testapp;
 
-import android.arch.util.paging.DataSource;
+import android.arch.paging.PositionalDataSource;
 import android.graphics.Color;
 import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,8 +27,8 @@ import java.util.List;
 /**
  * Sample data source with artificial data.
  */
-public class ItemDataSource extends DataSource<Integer, Item> {
-    private static final int COUNT = 10000;
+class ItemDataSource extends PositionalDataSource<Item> {
+    private static final int COUNT = 500;
 
     @ColorInt
     private static final int[] COLORS = new int[] {
@@ -38,59 +37,54 @@ public class ItemDataSource extends DataSource<Integer, Item> {
             Color.BLACK,
     };
 
-
     private static int sGenerationId;
     private final int mGenerationId = sGenerationId++;
 
-    @Override
-    public Integer getKey(@NonNull Item item) {
-        return item.id;
-    }
-
-    @Nullable
-    @Override
-    public List<Item> loadAfterInitial(@Nullable Integer position, int pageSize) {
-        if (position == null) {
-            position = -1;
-        }
-        return createItems(position + 1, pageSize, 1);
-    }
-
-    @Nullable
-    @Override
-    public List<Item> loadAfter(@NonNull Item currentEndItem, int pageSize) {
-        return createItems(currentEndItem.id + 1, pageSize, 1);
-    }
-
-    @Nullable
-    @Override
-    public List<Item> loadBefore(@NonNull Item currentBeginItem, int pageSize) {
-        return createItems(currentBeginItem.id - 1, pageSize, -1);
-    }
-
-    private List<Item> createItems(int start, int count, int direction) {
-        if (isInvalid()) {
-            // abort!
-            return null;
-        }
-
+    private List<Item> loadRangeInternal(int startPosition, int loadCount) {
         List<Item> items = new ArrayList<>();
-        int end = Math.max(-1, Math.min(COUNT, start + direction * count));
+        int end = Math.min(COUNT, startPosition + loadCount);
         int bgColor = COLORS[mGenerationId % COLORS.length];
 
         try {
-            Thread.sleep(300);
+            Thread.sleep(1000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        for (int i = start; i != end; i += direction) {
+        for (int i = startPosition; i != end; i++) {
             items.add(new Item(i, "item " + i, bgColor));
         }
-
-        if (isInvalid()) {
-            // abort!
-            return null;
-        }
         return items;
+    }
+
+    // TODO: open up this API in PositionalDataSource?
+    private static int computeFirstLoadPosition(int position, int firstLoadSize,
+            int pageSize, int size) {
+        int roundedPageStart = Math.round(position / pageSize) * pageSize;
+
+        // minimum start position is 0
+        roundedPageStart = Math.max(0, roundedPageStart);
+
+        // maximum start pos is that which will encompass end of list
+        int maximumLoadPage = ((size - firstLoadSize + pageSize - 1) / pageSize) * pageSize;
+        roundedPageStart = Math.min(maximumLoadPage, roundedPageStart);
+
+        return roundedPageStart;
+    }
+
+    @Override
+    public void loadInitial(int requestedStartPosition, int requestedLoadSize,
+            int pageSize, @NonNull InitialLoadCallback<Item> callback) {
+        requestedStartPosition = computeFirstLoadPosition(
+                requestedStartPosition, requestedLoadSize, pageSize, COUNT);
+
+        requestedLoadSize = Math.min(COUNT - requestedStartPosition, requestedLoadSize);
+        List<Item> data = loadRangeInternal(requestedStartPosition, requestedLoadSize);
+        callback.onResult(data, requestedStartPosition, COUNT);
+    }
+
+    @Override
+    public void loadRange(int startPosition, int count, @NonNull LoadCallback<Item> callback) {
+        List<Item> data = loadRangeInternal(startPosition, count);
+        callback.onResult(data);
     }
 }

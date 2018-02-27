@@ -28,7 +28,6 @@ import android.support.annotation.RestrictTo;
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 public class ReportFragment extends Fragment {
-
     private static final String REPORT_FRAGMENT_TAG = "android.arch.lifecycle"
             + ".LifecycleDispatcher.report_fragment_tag";
 
@@ -110,8 +109,17 @@ public class ReportFragment extends Fragment {
     }
 
     private void dispatch(Lifecycle.Event event) {
-        if (getActivity() instanceof LifecycleRegistryOwner) {
-            ((LifecycleRegistryOwner) getActivity()).getLifecycle().handleLifecycleEvent(event);
+        Activity activity = getActivity();
+        if (activity instanceof LifecycleRegistryOwner) {
+            ((LifecycleRegistryOwner) activity).getLifecycle().handleLifecycleEvent(event);
+            return;
+        }
+
+        if (activity instanceof LifecycleOwner) {
+            Lifecycle lifecycle = ((LifecycleOwner) activity).getLifecycle();
+            if (lifecycle instanceof LifecycleRegistry) {
+                ((LifecycleRegistry) lifecycle).handleLifecycleEvent(event);
+            }
         }
     }
 

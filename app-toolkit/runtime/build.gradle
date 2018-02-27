@@ -13,59 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import com.android.builder.core.BuilderConstants
-apply plugin: 'com.android.library'
-apply plugin: 'maven'
+
+import android.support.LibraryGroups
+import android.support.SupportLibraryExtension
+import android.support.LibraryVersions
+
+plugins {
+    id("SupportAndroidLibraryPlugin")
+}
 
 android {
-    compileSdkVersion tools.current_sdk
-    buildToolsVersion tools.build_tools_version
-
     defaultConfig {
         minSdkVersion flatfoot.min_sdk
-        targetSdkVersion tools.current_sdk
-        versionCode 1
-        versionName "1.0"
-
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
-
-    }
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    testOptions {
-        unitTests.returnDefaultValues = true
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_7
-        targetCompatibility JavaVersion.VERSION_1_7
     }
 }
 
 dependencies {
-    compile libs.support.annotations
-    compile project(":arch:common")
-    testCompile libs.junit
-    testCompile libs.mockito_core
-    testCompile(libs.test_runner) {
-        exclude module: 'support-annotations'
-    }
+    api libs.support.annotations
+    api project(":arch:common")
 }
-
-archivesBaseName = "runtime"
 
 createAndroidCheckstyle(project)
 
-android.libraryVariants.all { variant ->
-    def name = variant.buildType.name
-    def suffix = name.capitalize()
-    def jarTask = project.tasks.create(name: "jar${suffix}", type: Jar){
-        dependsOn variant.javaCompile
-        from variant.javaCompile.destinationDir
-        destinationDir new File(project.buildDir, "libJar")
-    }
+supportLibrary {
+    name = "Android Arch-Runtime"
+    publish = true
+    mavenVersion = LibraryVersions.ARCH_RUNTIME
+    mavenGroup = LibraryGroups.ARCH_CORE
+    inceptionYear = "2017"
+    description = "Android Arch-Runtime"
+    url = SupportLibraryExtension.ARCHITECTURE_URL
 }

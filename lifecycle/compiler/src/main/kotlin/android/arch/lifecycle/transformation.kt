@@ -19,39 +19,12 @@ package android.arch.lifecycle
 import android.arch.lifecycle.model.AdapterClass
 import android.arch.lifecycle.model.EventMethod
 import android.arch.lifecycle.model.EventMethodCall
+import android.arch.lifecycle.model.InputModel
 import android.arch.lifecycle.model.LifecycleObserverInfo
-import com.google.auto.common.MoreTypes
 import com.google.common.collect.HashMultimap
-import java.util.LinkedList
 import javax.annotation.processing.ProcessingEnvironment
 import javax.lang.model.element.TypeElement
-import javax.lang.model.type.NoType
-import javax.lang.model.type.TypeMirror
 import javax.tools.Diagnostic
-
-
-private fun superObservers(world: Map<TypeElement, LifecycleObserverInfo>,
-                           observer: LifecycleObserverInfo): List<LifecycleObserverInfo> {
-    val stack = LinkedList<TypeMirror>()
-    stack += observer.type.interfaces.reversed()
-    stack += observer.type.superclass
-    val result = mutableListOf<LifecycleObserverInfo>()
-    while (stack.isNotEmpty()) {
-        val typeMirror = stack.removeLast()
-        if (typeMirror is NoType) {
-            continue
-        }
-        val type = MoreTypes.asTypeElement(typeMirror)
-        val currentObserver = world[type]
-        if (currentObserver != null) {
-            result.add(currentObserver)
-        } else {
-            stack += type.interfaces.reversed()
-            stack += type.superclass
-        }
-    }
-    return result
-}
 
 private fun mergeAndVerifyMethods(processingEnv: ProcessingEnvironment,
                                   type: TypeElement,
@@ -80,22 +53,21 @@ private fun mergeAndVerifyMethods(processingEnv: ProcessingEnvironment,
 fun flattenObservers(processingEnv: ProcessingEnvironment,
                      world: Map<TypeElement, LifecycleObserverInfo>): List<LifecycleObserverInfo> {
     val flattened: MutableMap<LifecycleObserverInfo, LifecycleObserverInfo> = mutableMapOf()
-    val superObservers = world.mapValues { superObservers(world, it.value) }
 
     fun traverse(observer: LifecycleObserverInfo) {
         if (observer in flattened) {
             return
         }
-        val observers = superObservers[observer.type]!!
-        if (observers.isEmpty()) {
+        if (observer.parents.isEmpty()) {
             flattened[observer] = observer
             return
         }
-        observers.filter { it !in flattened }.forEach(::traverse)
-        val methods = observers
+        observer.parents.forEach(::traverse)
+        val methods = observer.parents
                 .map(flattened::get)
                 .fold(emptyList<EventMethod>()) { list, parentObserver ->
-                    mergeAndVerifyMethods(processingEnv, observer.type, parentObserver!!.methods, list)
+                    mergeAndVerifyMethods(processingEnv, observer.type,
+                            parentObserver!!.methods, list)
                 }
 
         flattened[observer] = LifecycleObserverInfo(observer.type,
@@ -106,29 +78,66 @@ fun flattenObservers(processingEnv: ProcessingEnvironment,
     return flattened.values.toList()
 }
 
-fun transformToOutput(processingEnv: ProcessingEnvironment,
-                      world: Map<TypeElement, LifecycleObserverInfo>): List<AdapterClass> {
-    val flatObservers = flattenObservers(processingEnv, world)
-    val syntheticMethods = HashMultimap.create<TypeElement, EventMethodCall>()
-    val adapterCalls = flatObservers.map { (type, methods) ->
-        val calls = methods.map { eventMethod ->
-            val executable = eventMethod.method
-            if (type.getPackageQName() != eventMethod.packageName()
-                    && (executable.isPackagePrivate() || executable.isProtected())) {
-                EventMethodCall(eventMethod, eventMethod.type)
-            } else {
-                EventMethodCall(eventMethod)
-            }
-        }
-        calls.filter { it.syntheticAccess != null }.forEach { eventMethod ->
-            syntheticMethods.put(eventMethod.method.type, eventMethod)
-        }
-        type to calls
-    }.toMap()
+private fun needsSyntheticAccess(type: TypeElement, eventMethod: EventMethod): Boolean {
+    val executable = eventMethod.method
+    return type.getPackageQName() != eventMethod.packageName()
+            && (executable.isPackagePrivate() || executable.isProtected())
+}
 
-    return adapterCalls.map { (type, calls) ->
-        val methods = syntheticMethods.get(type) ?: setOf()
-        val synthetic = methods.map { eventMethod -> eventMethod!!.method.method }.toSet()
-        AdapterClass(type, calls, synthetic)
+private fun validateMethod(processingEnv: ProcessingEnvironment,
+                           world: InputModel, type: TypeElement,
+                           eventMethod: EventMethod): Boolean {
+    if (!needsSyntheticAccess(type, eventMethod)) {
+        // no synthetic calls - no problems
+        return true
     }
+
+    if (world.isRootType(eventMethod.type)) {
+        // we will generate adapters for them, so we can generate all accessors
+        return true
+    }
+
+    if (world.hasSyntheticAccessorFor(eventMethod)) {
+        // previously generated adapter already has synthetic
+        return true
+    }
+
+    processingEnv.messager.printMessage(Diagnostic.Kind.WARNING,
+            ErrorMessages.failedToGenerateAdapter(type, eventMethod), type)
+    return false
+}
+
+fun transformToOutput(processingEnv: ProcessingEnvironment,
+                      world: InputModel): List<AdapterClass> {
+    val flatObservers = flattenObservers(processingEnv, world.observersInfo)
+    val syntheticMethods = HashMultimap.create<TypeElement, EventMethodCall>()
+    val adapterCalls = flatObservers
+            // filter out everything that arrived from jars
+            .filter { (type) -> world.isRootType(type) }
+            // filter out if it needs SYNTHETIC access and we can't generate adapter for it
+            .filter { (type, methods) ->
+                methods.all { eventMethod ->
+                    validateMethod(processingEnv, world, type, eventMethod)
+                }
+            }
+            .map { (type, methods) ->
+                val calls = methods.map { eventMethod ->
+                    if (needsSyntheticAccess(type, eventMethod)) {
+                        EventMethodCall(eventMethod, eventMethod.type)
+                    } else {
+                        EventMethodCall(eventMethod)
+                    }
+                }
+                calls.filter { it.syntheticAccess != null }.forEach { eventMethod ->
+                    syntheticMethods.put(eventMethod.method.type, eventMethod)
+                }
+                type to calls
+            }.toMap()
+
+    return adapterCalls
+            .map { (type, calls) ->
+                val methods = syntheticMethods.get(type) ?: emptySet()
+                val synthetic = methods.map { eventMethod -> eventMethod!!.method.method }.toSet()
+                AdapterClass(type, calls, synthetic)
+            }
 }
