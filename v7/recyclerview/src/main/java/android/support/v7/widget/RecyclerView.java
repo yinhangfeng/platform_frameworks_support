@@ -152,7 +152,6 @@ import java.util.List;
  *
  * @attr ref android.support.v7.recyclerview.R.styleable#RecyclerView_layoutManager
  *
- * 注释中带 EXT 的代表相对于默认 RecyclerView 的扩展
  */
 public class RecyclerView extends ViewGroup implements ScrollingView, NestedScrollingChild2 {
 
@@ -459,6 +458,9 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
     private OnFlingListener mOnFlingListener;
     private final int mMinFlingVelocity;
     private final int mMaxFlingVelocity;
+
+    // 是否开启边缘弹动 TODO
+    private boolean mBounceEnabled = true;
 
     // This value is used when handling rotary encoder generic motion events.
     private float mScaledHorizontalScrollFactor = Float.MIN_VALUE;
@@ -1801,6 +1803,10 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             invalidate();
         }
 
+        boolean canOverScroll = getOverScrollMode() != View.OVER_SCROLL_NEVER;
+        // overScroll 的量
+        int overScrollDX = unconsumedX, overScrollDY = unconsumedY;
+
         if (dispatchNestedScroll(consumedX, consumedY, unconsumedX, unconsumedY, mScrollOffset,
                 TYPE_TOUCH)) {
             // Update the last touch co-ords, taking any scroll offset into account
@@ -1811,12 +1817,34 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
             }
             mNestedOffsets[0] += mScrollOffset[0];
             mNestedOffsets[1] += mScrollOffset[1];
-        } else if (getOverScrollMode() != View.OVER_SCROLL_NEVER) {
+
+            // 参考SwipeRefreshLayout.onNestedScroll
+            overScrollDX = unconsumedX + mScrollOffset[0];
+            if (overScrollDX * unconsumedX <= 0) {
+                overScrollDX = 0;
+            }
+            overScrollDY = unconsumedY + mScrollOffset[1];
+            if (overScrollDY * unconsumedY <= 0) {
+                overScrollDY = 0;
+            }
+        } else if (canOverScroll && !mBounceEnabled) {
             if (ev != null && !MotionEventCompat.isFromSource(ev, InputDevice.SOURCE_MOUSE)) {
                 pullGlows(ev.getX(), unconsumedX, ev.getY(), unconsumedY);
             }
             considerReleasingGlowsOnScroll(x, y);
         }
+
+        if (canOverScroll && mBounceEnabled && ev != null && overScrollDX != 0 || overScrollDY != 0) {
+            // 执行bounce overScroll
+            // 只有在ev != null 既由touch 触发的scroll 才允许进入overScroll 程序调用不允许 TODO
+            // 不需要考虑 canScrollHorizontally canScrollVertically 因为调用scrollByInternal 时传入的x y 已考虑
+            consumedX += overScrollDX;
+            consumedY += overScrollDY;
+            super.scrollTo(getScrollX() + overScrollDX, getScrollY() + overScrollDY);
+        }
+
+        // TODO 可配置是否需要将overScroll dispatch?
+        // TODO 如果执行了bounce overScroll dispatchOnScrolled 中的onScrollChanged 就重复调用了
         if (consumedX != 0 || consumedY != 0) {
             dispatchOnScrolled(consumedX, consumedY);
         }
@@ -2930,7 +2958,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                 mInitialTouchX = mLastTouchX = (int) (e.getX() + 0.5f);
                 mInitialTouchY = mLastTouchY = (int) (e.getY() + 0.5f);
 
-                // EXT 增加在ACTION_DOWN 判断是否要进入SCROLL_STATE_DRAGGING 的钩子
+                // EXT 增加在ACTION_DOWN 判断是否要进入SCROLL_STATE_DRAGGING 的钩子 TODO
                 if (mScrollState != SCROLL_STATE_DRAGGING && shouldStartDraggingOnTouchDown(false, mInitialTouchX, mInitialTouchY)) {
                     getParent().requestDisallowInterceptTouchEvent(true);
                     setScrollState(SCROLL_STATE_DRAGGING);
@@ -2964,13 +2992,43 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                 final int y = (int) (e.getY(index) + 0.5f);
                 int dx = mLastTouchX - x;
                 int dy = mLastTouchY - y;
-				
-                // TODO EXT OverScroll 滑动返回优先于dispatchNestedPreScroll
-                if (mScrollState == SCROLL_STATE_DRAGGING) {
-//                    if () {
-//
-//                    }
+
+                /// overScroll
+                int scrollX = getScrollX();
+                int scrollY = getScrollY();
+                // TODO OVER_SCROLL_IF_CONTENT_SCROLLS
+                boolean canBounceOverScroll = mBounceEnabled && getOverScrollMode() != View.OVER_SCROLL_NEVER;
+                boolean isHorizontallyOverScroll = canBounceOverScroll && canScrollHorizontally && scrollX != 0;
+                boolean isVerticallyOverScroll = canBounceOverScroll && canScrollVertically && scrollY != 0;
+                Log.i(TAG, "onTouchEvent: ACTION_MOVE: x:" + x + " y:" + y + " dx:" + dx + " dy:" + dy
+                        + " scrollX:" + scrollX + " scrollY:" + scrollY
+                        + " isVerticallyOverScroll:" + isVerticallyOverScroll);
+
+                if (mScrollState == SCROLL_STATE_DRAGGING && (isHorizontallyOverScroll || isVerticallyOverScroll)) {
+                    // overScroll 减小方向
+                    if (isHorizontallyOverScroll && scrollX * dx < 0) {
+                        if (Math.abs(dx) > Math.abs(scrollX)) {
+                            dx = dx + scrollX;
+                            scrollX = 0;
+                        } else {
+                            scrollX = dx + scrollX;
+                            dx = 0;
+                        }
+                    }
+                    if (isVerticallyOverScroll && scrollY * dy < 0) {
+                        if (Math.abs(dy) > Math.abs(scrollY)) {
+                            dy = dy + scrollY;
+                            scrollY = 0;
+                        } else {
+                            scrollY = dy + scrollY;
+                            dy = 0;
+                        }
+                    }
+                    Log.i(TAG, "onTouchEvent: scrollTo scrollX:" + scrollX + " scrollY:" + scrollY);
+                    super.scrollTo(scrollX, scrollY);
                 }
+                /// overScroll end
+
                 if (dispatchNestedPreScroll(dx, dy, mScrollConsumed, mScrollOffset, TYPE_TOUCH)) {
                     dx -= mScrollConsumed[0];
                     dy -= mScrollConsumed[1];
@@ -3007,6 +3065,7 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                     mLastTouchX = x - mScrollOffset[0];
                     mLastTouchY = y - mScrollOffset[1];
 
+                    Log.i(TAG, "onTouchEvent: ACTION_MOVE: scrollByInternal dx:" + dx + " dy:" + dy);
                     if (scrollByInternal(
                             canScrollHorizontally ? dx : 0,
                             canScrollVertically ? dy : 0,
@@ -4897,6 +4956,43 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                 mLastFlingY = y;
                 int overscrollX = 0, overscrollY = 0;
 
+                /// overScroll
+                boolean canScrollHorizontally = mLayout.canScrollHorizontally();
+                boolean canScrollVertically = mLayout.canScrollVertically();
+                int scrollX = getScrollX();
+                int scrollY = getScrollY();
+                boolean canOverScroll = mBounceEnabled && getOverScrollMode() != View.OVER_SCROLL_NEVER;
+                boolean isHorizontallyOverScroll = canOverScroll && canScrollHorizontally && scrollX != 0;
+                boolean isVerticallyOverScroll = canOverScroll && canScrollVertically && scrollY != 0;
+                Log.i(TAG, "ViewFlinger run: x:" + x + " y:" + y + " dx:" + dx + " dy:" + dy
+                        + " scrollX:" + scrollX + " scrollY:" + scrollY
+                        + " isVerticallyOverScroll:" + isVerticallyOverScroll);
+
+                // overScroll 减小方向
+                if (isHorizontallyOverScroll && scrollX * dx < 0) {
+                    if (Math.abs(dx) > Math.abs(scrollX)) {
+                        dx = dx + scrollX;
+                        scrollX = 0;
+                    } else {
+                        scrollX = dx + scrollX;
+                        dx = 0;
+                    }
+                }
+                if (isVerticallyOverScroll && scrollY * dy < 0) {
+                    if (Math.abs(dy) > Math.abs(scrollY)) {
+                        dy = dy + scrollY;
+                        scrollY = 0;
+                    } else {
+                        scrollY = dy + scrollY;
+                        dy = 0;
+                    }
+                }
+                if (isHorizontallyOverScroll || isVerticallyOverScroll) {
+                    Log.i(TAG, "ViewFlinger run: back scrollTo scrollX:" + scrollX + " scrollY:" + scrollY);
+                    RecyclerView.super.scrollTo(scrollX, scrollY);
+                }
+                /// overScroll end
+
                 if (dispatchNestedPreScroll(dx, dy, scrollConsumed, null, TYPE_NON_TOUCH)) {
                     dx -= scrollConsumed[0];
                     dy -= scrollConsumed[1];
@@ -4937,13 +5033,26 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                 if (!mItemDecorations.isEmpty()) {
                     invalidate();
                 }
-                if (getOverScrollMode() != View.OVER_SCROLL_NEVER) {
+                if (canOverScroll && !mBounceEnabled) {
                     considerReleasingGlowsOnScroll(dx, dy);
                 }
 
-                if (!dispatchNestedScroll(hresult, vresult, overscrollX, overscrollY, null,
-                        TYPE_NON_TOUCH)
-                        && (overscrollX != 0 || overscrollY != 0)) {
+                // overScroll 的量
+                int overScrollDX = overscrollX, overScrollDY = overscrollY;
+
+                if (dispatchNestedScroll(hresult, vresult, overscrollX, overscrollY, mScrollOffset,
+                        TYPE_NON_TOUCH)) {
+
+                    // 参考SwipeRefreshLayout.onNestedScroll
+                    overScrollDX = overscrollX + mScrollOffset[0];
+                    if (overScrollDX * overscrollX <= 0) {
+                        overScrollDX = 0;
+                    }
+                    overScrollDY = overscrollY + mScrollOffset[1];
+                    if (overScrollDY * overscrollY <= 0) {
+                        overScrollDY = 0;
+                    }
+                } else if ((overscrollX != 0 || overscrollY != 0) && !mBounceEnabled) {
                     final int vel = (int) scroller.getCurrVelocity();
 
                     int velX = 0;
@@ -4964,6 +5073,16 @@ public class RecyclerView extends ViewGroup implements ScrollingView, NestedScro
                         scroller.abortAnimation();
                     }
                 }
+
+                if (canOverScroll && mBounceEnabled && overScrollDX != 0 || overScrollDY != 0) {
+                    // 执行bounce overScroll
+                    hresult += overScrollDX;
+                    vresult += overScrollDY;
+                    Log.i(TAG, "ViewFlinger run: scrollTo overScrollDX:" + overScrollDX + " overScrollDY:" + overScrollDY);
+                    RecyclerView.super.scrollTo(scrollX + overScrollDX, scrollY + overScrollDY);
+                }
+
+                // TODO
                 if (hresult != 0 || vresult != 0) {
                     dispatchOnScrolled(hresult, vresult);
                 }

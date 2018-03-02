@@ -422,6 +422,15 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".widget.SimpleRecyclerViewActivity"
+                  android:label="RecyclerView/Simple"
+                  android:theme="@style/Theme.AppCompat">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.example.android.supportv7.SAMPLE_CODE" />
+            </intent-filter>
+        </activity>
+
         <activity android:name=".widget.LinearLayoutManagerJankActivity"
                   android:label="@string/linear_layout_manager_jank"
                   android:theme="@style/Theme.AppCompat">
