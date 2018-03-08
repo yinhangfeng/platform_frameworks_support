@@ -54,6 +54,7 @@ dependencies {
     api "com.android.support:support-annotations:${rootProject.ext.extSupportversion}"
     api "com.android.support:support-compat:${rootProject.ext.extSupportversion}"
     api "com.android.support:support-core-ui:${rootProject.ext.extSupportversion}"
+    api "com.android.support:support-dynamic-animation:${rootProject.ext.extSupportversion}"
 }
 
 android {
